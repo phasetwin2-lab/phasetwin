@@ -1,0 +1,20 @@
+PASS signed broadband delay
+PASS signed broadband delay
+PASS signed broadband delay
+PASS signed broadband delay
+PASS signed broadband delay
+PASS inverted polarity with level mismatch
+PASS fractional peak interpolation
+PASS unrelated sources rejected
+PASS silence rejected
+PASS ambiguous periodic source rejected
+PASS search boundary rejected
+PASS sample rate / DC / noisy input
+PASS sample rate / DC / noisy input
+PASS sample rate / DC / noisy input
+PASS sample rate / DC / noisy input
+PASS zero delay
+PASS one sample delay
+PASS fractional delay read
+PASS cubic interpolation and ring wraparound
+PASS causal correction aligns both paths

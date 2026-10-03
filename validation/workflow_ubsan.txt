@@ -1,0 +1,18 @@
+PASS 120 BPM one beat = 500 ms
+PASS 90 BPM sixteenth note window
+PASS missing tempo uses 120 BPM
+PASS manual millisecond override
+PASS long tempo window capped at 4 seconds
+PASS invalid tempo fallback
+PASS anti-phase stereo no longer cancels analysis
+PASS silent reference diagnosed
+PASS silent main source diagnosed
+PASS right-only matched pair selected
+PASS unrelated sources diagnosed
+PASS periodic ambiguity diagnosed
+PASS full 4000 ms history available at 192 kHz
+PASS long view retains single-sample transient
+PASS mono envelope preserves real cancellation
+PASS dropped packets reset history rather than compressing time
+PASS sample-rate change resets time history
+17 workflow checks passed

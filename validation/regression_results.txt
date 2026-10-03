@@ -1,0 +1,18 @@
+PASS rate=44100 lag=-308.37 invert=0 output correlation=0.999478 residual=-0.0221681 RMS error=0.0358295
+PASS rate=44100 lag=-308.37 invert=1 output correlation=0.999478 residual=-0.0221681 RMS error=0.0358295
+PASS rate=44100 lag=308.37 invert=0 output correlation=0.999475 residual=0.0223371 RMS error=0.035909
+PASS rate=44100 lag=308.37 invert=1 output correlation=0.999475 residual=0.0223371 RMS error=0.035909
+PASS rate=48000 lag=-336.37 invert=0 output correlation=0.999714 residual=-0.0184704 RMS error=0.0265201
+PASS rate=48000 lag=-336.37 invert=1 output correlation=0.999714 residual=-0.0184704 RMS error=0.0265201
+PASS rate=48000 lag=336.37 invert=0 output correlation=0.999714 residual=0.0185306 RMS error=0.0265445
+PASS rate=48000 lag=336.37 invert=1 output correlation=0.999714 residual=0.0185306 RMS error=0.0265445
+PASS rate=96000 lag=-672.37 invert=0 output correlation=0.999998 residual=-0.00416646 RMS error=0.00221597
+PASS rate=96000 lag=-672.37 invert=1 output correlation=0.999998 residual=-0.00416646 RMS error=0.00221597
+PASS rate=96000 lag=672.37 invert=0 output correlation=0.999998 residual=0.00415626 RMS error=0.00221311
+PASS rate=96000 lag=672.37 invert=1 output correlation=0.999998 residual=0.00415626 RMS error=0.00221311
+PASS rate=192000 lag=-1344.37 invert=0 output correlation=1 residual=-0.00100422 RMS error=0.000212182
+PASS rate=192000 lag=-1344.37 invert=1 output correlation=1 residual=-0.00100422 RMS error=0.000212182
+PASS rate=192000 lag=1344.37 invert=0 output correlation=1 residual=0.000931273 RMS error=0.000200182
+PASS rate=192000 lag=1344.37 invert=1 output correlation=1 residual=0.000931273 RMS error=0.000200182
+PASS wrong correction, settling, invalid samples, scope capacity and concurrent transfer
+131317 assertions passed

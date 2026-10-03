@@ -1,0 +1,19 @@
+PASS quarter-note division
+PASS whole-note division
+PASS whole note at 120 BPM is 2000 ms
+PASS delay samples to milliseconds
+PASS signed delay conversion
+PASS partial capture is not displayed
+PASS complete kick capture published
+PASS kick visible in snapshot
+PASS silence retains snapshot
+PASS held frame does not move
+PASS next kick refreshes snapshot
+PASS packet gap does not publish partial frame
+PASS routing generation clears obsolete frame
+PASS new division retains old capture duration until replacement
+PASS long capture publishes after exact requested duration
+PASS four-second stable capture at 192 kHz
+PASS full long-duration snapshot retained
+PASS sample-exact sliced capture length
+PASS slice starts at exact trigger sample

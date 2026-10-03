@@ -1,0 +1,8 @@
+PASS first-open defaults are explicit
+PASS 84 style/mode/channel/division combinations roundtrip
+PASS invalid settings safely bounded
+PASS malformed packed preferences bounded
+PASS positive fill reaches zero baseline
+PASS negative fill preserves signed lobe
+PASS mixed envelope fill retains both peaks
+PASS both hidden waves remain a valid visual state
