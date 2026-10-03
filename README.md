@@ -8,7 +8,7 @@ Phase alignment helps signals combine more constructively by correcting timing a
 
 ## Project status
 
-**Current source version: 1.8.1 — release candidate.**
+**Current source version: 0.1.0 — initial development release.**
 
 This repository contains source code, not a standalone application or an installer. Build the VST3 and load it in a compatible DAW.
 
