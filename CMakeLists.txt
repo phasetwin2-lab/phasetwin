@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(PhaseTwin VERSION 1.8.1 LANGUAGES CXX)
+project(PhaseTwin VERSION 1.8.1 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(PHASETWIN_DSP_ONLY "Build DSP tests without JUCE" OFF)
