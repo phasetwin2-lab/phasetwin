@@ -1,6 +1,6 @@
 # PhaseTwin product specification
 
-Accepted project direction: 3 October 2026. This document records the user's development brief and governs prioritization. Current source revision: 1.9.1 release candidate.
+Accepted project direction: 3 October 2026. This document records the user's development brief and governs prioritization. Current source revision: 1.12.0 release candidate.
 
 ## Product goal
 
@@ -64,3 +64,16 @@ Version 1.8 defaults new instances to Kick + bass and filled waveforms at the us
 ## Optional sidechain ducking
 
 Envelope ducking is separate from alignment: latency-matched B drives a stereo-linked gain applied to A only. Enable defaults off; Amount sets up to 24 dB depth, Harshness controls attack/release/knee. Analysis and waveform diagnostics remain pre-ducking. The detector is level-dependent (fixed −36 to −12 dBFS region). No drawn-curve shaper or additional latency is introduced. Automatic correction uses a three-mode selector: both corrections (default), Preserve polarity or Preserve timing. Preserve means keeping the current value; Reset restores original timing. Manual controls remain independent.
+
+Groove preservation is an optional low-band energy safeguard, enabled by default for kick/bass with a 2 ms new-shift limit. Preview defaults on: analysis proposes and Apply commits. Independent timing/polarity audition preserves stored state. Weak/no-benefit outcomes hold correction; no guarantee of perceptual improvement is implied.
+
+Stage 2 now has diagnostic spectral phase bands and one optional manual second-order all-pass section. The phase plot is not coherence analysis; rotation is not automatically optimized and does not provide arbitrary multi-band correction. Group delay and tail changes need listening validation.
+
+
+### Audio history (v1.13.0)
+
+The first-stage workflow retains recommendation preview and adds 128 session-local Undo/Redo steps for audio parameters and held timing/polarity. Group slider gestures, presets and Reset. Exclude display state, preview preference and temporary Hear proposal. A new audio edit truncates Redo. Session/preset recall establishes a fresh baseline; save/restore the sound and display, not the edit history. Native host integration/automation validation is still required.
+
+### Fresh checks and section collection (v1.14.0)
+
+Optional verification after Apply compares fresh unaligned and actually corrected audio at matched latency, including manual phase rotation but preceding ducking/output mixing. It reports improvement, worsening, unchanged or unsupported evidence without adapting the correction. Optional 2–4-section collection evaluates a common fitted timing/polarity candidate against all supported retained passages, with conservative harm and kick-groove rejection. Preview and audio Undo/Redo remain available; captures/results do not persist and workflow switches stay outside audio history.

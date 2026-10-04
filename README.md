@@ -8,7 +8,7 @@ Phase alignment helps signals combine more constructively by correcting timing a
 
 ## Project status
 
-**Current source version: 1.9.2 — release candidate.**
+**Current source version: 1.14.0 — release candidate.**
 
 This repository contains source code, not a standalone application or an installer. Build the VST3 and load it in a compatible DAW.
 
@@ -19,14 +19,15 @@ Portable DSP, capture, scope, and preference tests have passing results recorded
 - **Two analysis profiles:** Kick + bass, and Same source / microphones.
 - **Automatic timing and polarity:** signed sample-delay estimation, fractional refinement, and optional polarity reversal.
 - **High-quality fractional delay:** 64-tap windowed-sinc interpolation, with causal guard samples.
+- **Modern editor:** dark layered panels, mint accents, styled buttons/sliders and visible keyboard focus.
 - **Automatic correction mode:** Timing + polarity (default), Preserve polarity, or Preserve timing.
 - **Learn and hold:** reliable corrections are applied once and retained; unreliable analysis keeps the previous correction.
 - **Manual adjustment:** timing trim and polarity override remain available after analysis.
 - **Monitoring:** Before/After waveforms, Lines/Filled styles, Stacked/Summed views, L/R/mono selection, and shared amplitude scaling.
-- **Stable scope:** reference-triggered captures, continuous Rolling mode, and Hold scope.
+- **Stable scope:** reference-triggered captures, continuous Rolling mode, and Hold view.
 - **Tempo-aware duration:** note divisions from 1/64 through 1/1, or a manual millisecond window.
-- **Audition and recovery:** matched-latency unaligned comparison, Cancel analysis, and one-level Undo.
-- **Session recall:** learned correction, parameters, undo history, and scope preferences are saved with the plugin.
+- **Audition and recovery:** matched-latency unaligned comparison, Cancel analysis, and 128-step Undo/Redo.
+- **Session recall:** learned correction, parameters, and scope preferences are saved with the plugin.
 
 New instances default to **Kick + bass**, **Filled waveforms**, **Stacked view**, and **0.0 dB output gain**. Saved sessions retain their existing settings.
 
@@ -37,7 +38,8 @@ New instances default to **Kick + bass**, **Filled waveforms**, **Stacked view**
 3. Choose the appropriate analysis profile.
 4. Play a representative section and press **Learn** in kick/bass mode or **Analyze** in same-source mode.
 5. Read the result and confidence, then use **Hear unaligned** to compare the corrected and neutral paths.
-6. Adjust timing trim or manual polarity if needed. Analyze again when the material or routing changes.
+6. With Preview before apply enabled (default), inspect proposed timing, polarity and estimated improvement, then click Apply recommendation. The held correction stays unchanged until Apply.
+7. Adjust timing trim or manual polarity if needed. Analyze again when the material or routing changes.
 
 ### Kick + bass
 
@@ -70,8 +72,8 @@ Weakly related signals, competing reflections, periodic ambiguity, or offsets at
 | Output gain | Apply the same gain to corrected and unaligned audition paths. Default and double-click reset: **0.0 dB**. |
 | Hear unaligned | Audition neutral timing/polarity at matched latency and output gain. Learned settings remain intact. |
 | Cancel | Stop the active analysis and hold the existing correction. |
-| Undo last analyze | Restore one prior learned timing/polarity correction, preserving current manual controls. |
-| Reset alignment | Clear learned correction and manual timing/polarity overrides; clear undo history. |
+| Undo / Redo | Move backward or forward through up to 128 audio edits, including applied corrections, manual controls, ducking and rotation. |
+| Reset alignment | Clear learned correction and manual timing/polarity overrides; the reset itself is reversible. |
 
 **Positive timing offsets advance A relative to B; negative offsets delay A further.** Relative advance is made causal through the plugin's reported latency.
 
@@ -81,15 +83,47 @@ The Kick + bass preset sets the profile and 180 Hz focus while retaining the sel
 
 Older timing-only and polarity-only presets migrate to the matching mode. Legacy measure-only presets load in Preserve timing with Lock correction enabled; starting Analyze explicitly unlocks and uses the displayed mode. The old permission parameters remain as legacy state fields, but new automation should use Automatic correction.
 
-Cancel and Undo requests are processed on the next audio callback. If playback is stopped, resume processing to complete the request.
+Cancel and restoration of learned corrections run on the next audio callback. Undo/Redo updates parameter settings immediately; while stopped you can navigate several steps and the latest requested correction takes effect when processing resumes. A pending Reset finishes on the next callback before it can be undone.
 
-Ducking uses a fixed detector region from −36 to −12 dBFS, so reference level affects the response. It is envelope-based, not a drawn volume-shaping curve. Controls and enable changes are smoothed, and ducking adds no latency. Analysis, scores and scope remain pre-ducking; the reduction meter describes the separate volume effect. Hear unaligned keeps ducking active for a fair comparison of alignment. Host bypass returns to the neutral, unducked target.
+Ducking uses a detector region from −36 to −12 dBFS; Detector sensitivity applies −24 to +24 dB of detector-only gain, so reference level affects the response. It does not boost reference audio. It is envelope-based, not a drawn volume-shaping curve. Controls and enable changes are smoothed, and ducking adds no latency. Analysis and scores remain pre-ducking; the After scope can show pre- or post-ducking. The reduction meter describes the separate volume effect. Hear unaligned keeps ducking active for a fair comparison of alignment. Host bypass returns to the neutral, unducked target.
+
+## Compact controls
+
+The main workflow stays visible: profile, correction mode, preview, manual timing/polarity, lock and output mix/gain. Expand **Analysis & groove**, **Ducking**, **Advanced ducking**, **Phase rotation** or **Audition** to access their settings. All sections start collapsed; their expansion state is saved with the session. Effect headers show their active status even when closed. Collapsing only hides controls—it never disables processing or resets parameters.
+
+The controls area reflows and scrolls when needed, keeping the waveform/spectrum visible. Wheel scrolling does not change slider values; drag or use numeric entry to adjust them. Default editor size is 1080×960, with a 940×900 minimum. The output meter, Analyze/Apply, Undo and unaligned comparison remain accessible outside the sections.
+
+## Spectral phase monitoring and manual rotation
+
+Click **Spectrum** to replace the waveform view with 64 logarithmic bands across 20 Hz–20 kHz. Amber shows raw target/reference phase; mint shows processed A versus latency-matched B, including enabled phase rotation, before ducking. 0° indicates matching phase; ±180° indicates opposition. Values are wrapped phase differences, not an unwrapped transfer-function plot. Before/After curves connect supported adjacent measurements and break at phase wraps or gaps. Isolated supported measurements retain markers. Relative joint-energy shading, a clear zero line, log-frequency guides and mouse-hover band ranges/phase/support values make the evidence readable. Before/After toggles hide either curve; Hold view freezes the spectral snapshot. Coherent atomic snapshots prevent mixing bands from different updates. Empty/faint bands have little joint energy or poor within-band phase concentration. Brightness is **not temporal coherence, calibrated confidence or proof of cancellation**. Low frequencies have limited resolution at high sample rates (8192-sample Hann-windowed FFT). The strongest analysis channel is selected automatically; this is independent of the waveform channel selector. Spectral FFTs run on the worker thread.
+
+**All-pass phase rotation** defaults off and affects A only. Centre 20–2000 Hz and Q 0.2–2 control one second-order all-pass section. At a fixed setting it has unity magnitude and approximately 180° phase shift at its centre; it is not a constant phase-angle control. Parameters and enable transitions are smoothed over a 20 ms time constant. Intermediate dry/wet transitions can temporarily change level. No additional fixed latency is reported, but frequency-dependent group delay can reshape attacks and note tails; this can affect the groove even with Preserve timing enabled. Conservative tail reporting adds 300 ms for filter decay.
+
+Rotation is **manual**, not fitted by Analyze. Timing/polarity recommendations use the source relationship and do not optimize the all-pass response. Hear unaligned, Timing only and Neither audition bypass rotation; Polarity only includes rotation when enabled. Recheck the After spectrum and listen across changing bass notes. Automatic multi-band spectral optimization remains future work.
+
+## Output headroom and advanced ducking
+
+The stereo output meter shows sample peaks **after ducking, reference mixing and output gain**, with a 0 dBFS marker and a decaying peak display. The CLIP indicator latches when a sample reaches/exceeds full scale. Click the meter (or press Space/Enter when focused) to clear the latch on the next audio callback; ongoing over-full-scale output will relatch it. The meter does not measure intersample/true peaks or limit output.
+
+**Advanced attack / release** defaults off. Simple mode retains the Harshness-controlled timing. Advanced mode enables separate **Attack 0.1–100 ms** and **Release 10–1000 ms** sliders; Harshness still controls the knee. Detector sensitivity works in either mode, defaults to 0 dB and is smoothed over 5 ms. Separate attack/release settings default to 3/125 ms and recall independently. Actual gain also has the existing 1 ms smoothing.
+
+The **Duck envelope** graph displays actual gain reduction over time—not a hypothetical editable curve. It shares the waveform capture and Hold; the numerical reduction readout updates live. Higher downward reduction means stronger ducking. Post-duck After view shows its effect on A and the summed signal.
+
+## Groove preservation, preview and audition
+
+**Preserve kick/bass groove** defaults on in kick/bass mode. It limits each new timing move around the held offset (default 2 ms; adjustable 0.1–5 ms) and rejects candidates that turn previously active low-band sections into quiet 2 ms bins between detected kicks. This analyzes the joint source energy, not the cancellation in their sum. It is a conservative heuristic, not note detection or a guarantee that every groove is preserved. It does not undo an existing large shift; Reset restores original timing. Turning it off restores the wider search. Same-source analysis does not use this guard.
+
+**Preview before apply** defaults on. Analyze produces a pending recommendation. **Hear proposal** temporarily processes it so you can listen and inspect actual After waveforms, spectrum and output peaks. Toggle it off to return to the held correction; Apply recommendation commits it and creates an Undo entry. Disabling Preview restores immediate reliable application. New analysis, Reset, Cancel, manual/analysis setting changes or state reload invalidate a pending proposal. Proposals and Hear proposal are ephemeral and are not restored with the session. Temporary audition preserves held correction and Undo history. It temporarily overrides the component-audition selector and Hear unaligned, without changing their saved settings. Manual trim/flip and enabled rotation, ducking, output mix and gain remain as configured. Applying, invalidating or replacing a proposal ends its audition. Transitions use the existing smoothing; held/triggered displays update according to their capture policy—release Hold to see new audio. Apply is handled on the audio callback; resume playback if processing has stopped.
+
+The preview reports learned offset (manual trim remains additional), learned polarity and estimated interaction/correlation improvement. Kick/bass estimates use the captured hit objective. Same-source estimates use linear fractional sampling of the last captured input frame; they are predictions, not independent live validation or calibrated confidence. Weak evidence, little measured overlap, no meaningful gain or rejected groove candidates produce **No useful correction** and retain the previous correction. Continuous same-source tracking also proposes instead of committing while Preview is on.
+
+**Audition correction** selects Timing + polarity, Timing only, Polarity only or Neither. It includes the corresponding manual trim/flip, retains latency, and never overwrites stored correction. Existing Hear unaligned overrides it with neutral output; turn Hear unaligned off to hear the selection. Ducking stays active across audition modes. Timing/polarity changes crossfade over the existing 20 ms transition; comparisons are not instantaneous sample switches.
 
 ## Waveform monitoring
 
 Click **Waveforms: Filled / Lines**, **Reference trigger / Capture: Rolling**, or **Scope: Stacked / Summed** to switch the display modes directly. All choices are saved in the session.
 
-Both panels use one shared automatic amplitude scale. They show the captured signals before ducking, output mixing and gain.
+Both panels use one shared automatic amplitude scale. Before remains the input view. The After: Pre-duck / Post-duck button switches aligned A before/after ducking; Summed adds unducked B. Both views remain before output mixing and gain. The button is available when ducking is enabled, and its choice is saved. A 0–24 dB reduction history appears below the After waveform while ducking is enabled. It follows the same captured time window, trigger/rolling mode and Hold. Pre/post views share a scale computed from both signals, preventing toggle-driven rescaling.
 
 | View | Before | After |
 | --- | --- | --- |
@@ -104,7 +138,7 @@ The Before and After panels remain vertically separated in both modes. Mint repr
 - **Filled** adds translucent signed waveform areas while retaining the outlines.
 - **Show A / Show B** controls trace visibility in Stacked mode. These controls are disabled in Summed mode so both signals always contribute to the sum.
 - **Reference trigger** holds the latest complete capture until another reference transient produces a complete replacement.
-- **Rolling** scrolls continuously; **Hold scope** freezes the picture only.
+- **Rolling** scrolls continuously; **Hold view** freezes the picture only.
 - **DAW sync** uses the host tempo for window duration, with a labeled 120 BPM fallback if tempo is unavailable.
 - **Note divisions** are 1/64, 1/32, 1/16, 1/8, 1/4, 1/2, and 1/1. At 120 BPM, 1/4 is 500 ms and 1/1 is 2000 ms.
 - **Manual window** supports 2–4000 ms. All scope durations are capped at four seconds.
@@ -148,7 +182,7 @@ A `.vst3` is a plugin bundle, not a standalone `.exe`. Copy the complete bundle 
 
 ### Build and validate
 
-With a local `pluginval.exe`, the supplied script builds Release x64, runs all eleven CTest suites, and validates the plugin at strictness levels 5 and 10:
+With a local `pluginval.exe`, the supplied script builds Release x64, runs all twelve CTest suites, and validates the plugin at strictness levels 5 and 10:
 
 ```powershell
 ./BUILD_AND_VALIDATE.ps1 -JuceDir "C:/dev/JUCE" -PluginvalPath "C:/tools/pluginval.exe"
@@ -158,7 +192,7 @@ Logs are written to `build-release/logs`. The script stops on a failed step. Fin
 
 ### Portable tests without JUCE
 
-The ten portable test suites can also be built independently:
+The eleven portable test suites can also be built independently:
 
 ```sh
 cmake -S . -B build-dsp -DPHASETWIN_DSP_ONLY=ON
@@ -188,7 +222,7 @@ The full build additionally includes the native JUCE integration test. Recorded 
 | **2** | Spectral coherence/phase visualization and optional frequency-dependent phase optimization | Planned |
 | **3** | Multi-instance communication, reference selection, and multi-track group alignment | Planned |
 
-Spectral correction, phase-rotation controls, multi-instance grouping, bass-mono processing, and a drawn-curve ducking shaper are not currently implemented. Envelope sidechain ducking is available.
+Automatic spectral correction, multi-instance grouping, bass-mono processing, and a drawn-curve ducking shaper are not currently implemented. Manual all-pass phase rotation and spectral phase monitoring are available. Envelope sidechain ducking is available.
 
 See [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md) for the staged design, [RELEASE_GAPS.md](RELEASE_GAPS.md) for outstanding priorities, and [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) for release acceptance.
 
@@ -202,32 +236,30 @@ Keep changes focused and run the relevant tests. New automatic corrections shoul
 
 Original PhaseTwin source is licensed under the **MIT License**; see [LICENSE](LICENSE). JUCE and its third-party dependencies have separate license terms and are not included in this repository's license grant.
 
-## Recent changes
+## Audio Undo / Redo
 
-Improve alignment controls, waveform monitoring and sidechain ducking
+Up to **128 steps** are kept per plugin instance, including audio parameters, applied learned timing/polarity and Reset. A slider gesture is one step; the kick preset and Reset group their parameter changes. New audio edits after Undo discard the redo branch. Continuous tracking is grouped into one evolving step; host automation without gestures is coalesced until 250 ms of quiet (or an explicit Undo/Redo). DAW automation can reassert its values during playback; plugin history does not rewrite the DAW automation lanes.
 
-- Replace independent timing/polarity permissions with three mutually exclusive automatic correction modes:
-  - Timing + polarity (default)
-  - Preserve polarity: adjust timing only
-  - Preserve timing: adjust polarity only
-- Preserve existing learned corrections and manual overrides when switching modes.
-- Apply the selected mode to both one-shot learning and continuous tracking.
-- Keep the selected correction mode when applying the Kick + bass preset.
-- Migrate legacy timing/polarity settings and save the new selector in plugin state.
+Display changes—scope composition/style, Hold, tempo/window, channel visibility, spectrum view and section expansion—are excluded. **Preview before apply** is a workflow preference and also excluded. **Hear proposal** remains temporary and creates no entry; applying a proposal creates an audio edit. Saved audio comparison/audition switches affect sound and are included.
 
-- Add optional stereo-linked sidechain ducking, disabled by default.
-- Use reference B to attenuate target A after alignment, leaving B unducked.
-- Add Amount and Harshness sliders with editable percentages and a gain-reduction readout.
-- Support up to 24 dB attenuation; Harshness adjusts attack, release and detector knee.
-- Smooth ducking transitions without adding latency.
-- Keep alignment analysis, scores and waveform monitoring pre-ducking.
+The edit history is session-local: loading a preset/session establishes a fresh baseline while recalling the saved sound and display. It is not serialized, and legacy one-level Undo metadata is ignored. Counts on the Undo/Redo buttons show available steps. Native JUCE/DAW integration remains a release gate; the portable history tests do not certify host behavior.
 
-- Replace Stacked/Summed, Filled/Lines and Reference trigger/Rolling dropdowns with click-to-switch buttons.
-- Apply waveform choices to both Before and After panels and preserve them in session state.
-- Improve control labels, tooltips and help text, including clarification that Preserve timing retains existing offsets until Reset.
+## Optional post-Apply verification
 
-- Extend portable ducking and selective-correction tests.
-- Add native regression coverage for state migration, mode recall, ducking output and bypass.
-- Update README, validation results and release checklist.
+**Analysis & groove → Verify after apply** defaults **On**. After applying a recommendation or immediately applying reliable learning, the plugin waits for normal corrected audition and settled processing, then measures **fresh audio** against unaligned A at matched latency. It never changes the correction. Kick/bass checks four seconds of supported low-band kick events; Same source accumulates valid nonoverlapping correlation windows for at least one second, with a two-second capture timeout. Continue playback to finish.
 
-Validation: all ten portable suites passed for the ducking update; relevant alignment suites passed after the correction-mode changes. Ducking and kick selective-correction tests also passed UndefinedBehaviorSanitizer. Native VST3 compilation, GUI checks and DAW validation remain pending.
+The always-visible footer reports **Improved**, **Worsened**, **No clear difference**, or **Not reliably measurable**, with signed before/after interaction/correlation and heuristic support where available. A 0.02 difference is the significance threshold; improvement/worsening needs at least 75% directional agreement. Silence, insufficient overlap/hits, invalid input or conflicting evidence do not produce a success claim. The result describes the measured passage; it is not continuous monitoring or a calibrated confidence probability.
+
+The check includes the actual phase-rotation path, but runs before ducking, reference mix and output gain, which could otherwise make alignment appear better through attenuation. Unaligned/component/proposal audition pauses and restarts the pending capture. Timing/polarity/rotation/analysis changes, new Analyze, Reset, Undo/Redo and state reload invalidate it. Turning the check off disables pending measurement; turning it back on arms the next Apply.
+
+## Optional multiple-section analysis
+
+1. Expand **Analysis & groove** and enable **Collect multiple sections**.
+2. Play a representative passage and click **Collect section**. Each capture is four seconds in Kick/bass or two seconds in Same source. The held correction stays unchanged.
+3. Move playback to another representative passage or bass-note range and collect again. Collect **2–4 sections**. The plugin cannot detect whether you chose distinct song locations.
+4. Click **Evaluate sections**. It evaluates fitted candidates from the sections against every retained passage, requiring meaningful mean improvement, at least 75% improved sections and no section harmed by more than 0.02. Kick/bass also checks the groove cap and gap heuristic on every section.
+5. With Preview enabled, hear the common proposal and inspect per-section gains before Apply. Without Preview, a reliable result applies immediately. Inconsistent/unreliable sections or lack of a safe common candidate leave the previous correction intact.
+
+Kick/bass retains each complete filtered capture. Same source retains up to 64 FFT input frames per section and evaluates all supported retained windows; it does not concatenate different song passages into one waveform. Candidates come from per-section fits, rather than an exhaustive global timing search or spectral optimizer. This conservative workflow can reject a compromise you prefer by ear.
+
+**Clear sections** discards analysis captures while retaining the held sound and audio history. Collection mode/settings changes, Cancel, Reset, Undo/Redo, applying a correction, routing/state/sample-rate changes clear the collection. Captures, pending proposals and verification results are transient and are not saved in presets/sessions. The two workflow toggles are saved but excluded from audio Undo/Redo.

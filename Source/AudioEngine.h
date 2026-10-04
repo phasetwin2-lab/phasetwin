@@ -63,3 +63,15 @@ inline double zeroLagCorrelation(const float* a, const float* b, int count) {
     return std::clamp(ab/std::sqrt(aa*bb), -1.0, 1.0);
 }
 }
+
+namespace phasetwin {
+// Predicted correlation on captured input, using linear fractional sampling.
+// A candidate measurement, not a claim of live output verification.
+inline double predictedCorrelation(const float* a,const float* b,int count,double lag,bool invert){
+    if(count<2 || !std::isfinite(lag) || std::abs(lag)>=count)return 0;
+    double sx=0,sy=0,sxx=0,syy=0,sxy=0;int used=0;
+    for(int n=0;n<count;++n){const double p=n+lag;const int i=int(std::floor(p));if(i<0 || i+1>=count)continue;const double x=(double(a[i])+(p-i)*(a[i+1]-a[i]))*(invert?-1:1),y=b[n];sx+=x;sy+=y;sxx+=x*x;syy+=y*y;sxy+=x*y;++used;}
+    if(used<2)return 0;
+    const double xx=sxx-sx*sx/used,yy=syy-sy*sy/used;return xx>1e-12 && yy>1e-12?std::clamp((sxy-sx*sy/used)/std::sqrt(xx*yy),-1.0,1.0):0;
+}
+}

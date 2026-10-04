@@ -1,0 +1,18 @@
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS multi-window timing/polarity with gain, DC, noise and weaker reflection
+PASS equally strong reflection peaks remain ambiguous
+PASS unrelated microphones rejected

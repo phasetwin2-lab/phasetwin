@@ -12,7 +12,7 @@ inline double samplesToMs(double samples,double rate){return std::isfinite(rate)
 inline double scopeDivisionBeats(int id){return std::pow(2.0,std::clamp(id,1,7)-1)/16.0;}
 // GUI-thread-only two-resolution history. Longer views retain min/max peaks.
 class ScopeHistory {
-    static constexpr int rawCapacity=16384,envelopeCapacity=65536,decimation=16,traces=18;
+    static constexpr int rawCapacity=16384,envelopeCapacity=65536,decimation=16,traces=27;
     std::vector<float> raw,low,high;
     std::array<float,traces> pendingLow{},pendingHigh{};
     int rawHead=0,rawCount=0,envHead=0,envCount=0,pendingCount=0;
@@ -30,9 +30,9 @@ public:
         if(!initialized || p.generation!=generation || p.sampleRate!=rate || p.firstSample+begin!=nextSequence)clear();
         generation=p.generation;rate=p.sampleRate;nextSequence=p.firstSample+begin+length;initialized=true;
         for(int n=begin;n<begin+length;++n){
-            for(int wave=0;wave<6;++wave)for(int channel=0;channel<3;++channel){
+            for(int wave=0;wave<9;++wave)for(int channel=0;channel<3;++channel){
                 const int t=wave*3+channel;
-                auto value=[&](int ch){if(wave<4)return p.traces[wave*2+ch][n];const int base=wave==4?0:4;return p.traces[base+ch][n]+p.traces[base+2+ch][n];};
+                auto value=[&](int ch){if(wave<4)return p.traces[wave*2+ch][n];if(wave==6)return p.traces[8+ch][n];if(wave==7)return p.traces[8+ch][n]+p.traces[6+ch][n];if(wave==8)return p.reductionDb[n];const int base=wave==4?0:4;return p.traces[base+ch][n]+p.traces[base+2+ch][n];};
                 const float v=channel==2?0.5f*(value(0)+value(1)):value(channel);
                 raw[t*rawCapacity+rawHead]=v;
                 if(pendingCount==0)pendingLow[t]=pendingHigh[t]=v;

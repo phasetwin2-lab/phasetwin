@@ -1,0 +1,19 @@
+PASS disabled default passes unity gain
+PASS silent sidechain does not duck
+PASS selected depth at sustained full activity across sample rates
+PASS selected depth at sustained full activity across sample rates
+PASS selected depth at sustained full activity across sample rates
+PASS selected depth at sustained full activity across sample rates
+PASS selected depth at sustained full activity across sample rates
+PASS selected depth at sustained full activity across sample rates
+PASS selected depth at sustained full activity across sample rates
+PASS selected depth at sustained full activity across sample rates
+PASS selected depth at sustained full activity across sample rates
+PASS selected depth at sustained full activity across sample rates
+PASS selected depth at sustained full activity across sample rates
+PASS selected depth at sustained full activity across sample rates
+PASS linked detector treats left/right and opposite polarity equally
+PASS harshness gives faster duck onset
+PASS harshness gives shorter release
+PASS disabling smoothly restores unity with active reference
+PASS nonfinite controls and sidechain remain safe

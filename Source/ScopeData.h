@@ -3,10 +3,11 @@
 #include <atomic>
 #include <cstdint>
 namespace phasetwin {
-// Four stereo traces: input A, input B, corrected A, latency-matched B.
+// Five stereo traces: input A/B, aligned A/B, post-duck A; sample-matched reduction in dB.
 constexpr int scopePacketSamples = 256;
 struct ScopePacket {
-    std::array<std::array<float, scopePacketSamples>, 8> traces{};
+    std::array<std::array<float, scopePacketSamples>, 10> traces{};
+    std::array<float, scopePacketSamples> reductionDb{};
     double sampleRate = 48000;
     std::uint64_t firstSample = 0;
     std::uint32_t generation = 0;

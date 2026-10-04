@@ -122,3 +122,71 @@ Kick, workflow and learning portable suites pass fresh C++17 strict-warning buil
 ## v1.9.2 — direct scope buttons and ducking sliders
 
 Lines/Filled and Reference trigger/Rolling now use two-state buttons with current-mode labels. Restore explicitly updates labels and display state without triggering save callbacks; packed preference values and defaults are unchanged. Ducking Amount/Harshness use horizontal sliders with numeric percent entry and a 50% double-click reset; their parameter attachments and DSP are unchanged. This is a reversible editor-only change. Native JUCE compilation, mouse/keyboard interaction, layout at supported sizes/DPI and session recall require local validation; existing portable preference/DSP results do not validate the new GUI.
+
+## v1.9.2 — editor theme and C language build fix
+
+Enabled C and C++ in the top-level project declaration as required by JUCE dependencies. Added an editor-owned LookAndFeel with dark gradients, outlined panels, styled slider tracks/thumbs, active-button accents and keyboard-focus outlines. Editor destruction disconnects the LookAndFeel before member destruction; styling is local to the plugin editor. Audio processing, parameter values and saved-state layout are unchanged. Source inspection completed. This environment has no CMake/JUCE native build; native compilation, visual layout, DPI, focus/disabled states and popup appearance remain unverified. Prior portable DSP results remain applicable but do not validate styling or the CMake fix.
+
+## v1.9.2 — post-duck scope and reduction history
+
+Audio visualization packets now include actual post-duck stereo A and per-sample gain reduction in dB. Editor history derives the post-duck A+B sum before decimation. After: Pre/Post-duck is saved in an unused preference bit (legacy default pre-duck); the Before display and alignment scores remain unchanged. A reduction graph shares the same capture window and Hold. Pre/post scale includes both histories regardless of selected view. Minimum editor height is 860 to accommodate the added graph. Additional portable tests cover preference recall, attenuated target, unducked-reference sum cancellation and reduction peaks in raw/decimated histories. Native waveform/button rendering, processor capture integration and additional visualization CPU/memory require local JUCE/DAW checks.
+
+Fresh strict-warning C++17 builds pass for view, triggered scope, workflow, end-to-end alignment regressions and ducking. The expanded view tests also pass UndefinedBehaviorSanitizer. Logs: `*_duckview.txt` and `view_duck_ubsan.txt`. Native tests now assert actual captured ducked A, unchanged B, reduction dB and saved post-duck preference; those native assertions remain unexecuted here.
+
+## v1.10.0 — groove guard, recommendation workflow and independent audition
+
+Added optional kick/bass groove search (default on, 2 ms new-shift cap) and a full inter-kick low-band joint-energy gap heuristic using 2 ms bins. Preview defaults on; session and continuous learning propose, and Apply commits on the audio thread with Undo. Proposals are invalidated by capture/settings changes and are not persisted. Kick candidate improvement is measured on the captured hit objective; same-source improvement is predicted on the last input frame with linear fractional sampling and is not live verification. No-benefit/unreliable results retain previous correction with specific messages. Independent timing/polarity audition is automatable, holds stored correction and uses the existing latency/crossfade. New parameters are appended, with schema 7 defaults on legacy recall. Native preview/apply and audition assertions were added but remain uncompiled/unexecuted here.
+
+Portable kick tests cover shift caps, connected-pattern gap rejection for both advance and delay, unchanged-groove acceptance and predicted-correlation polarity discrimination. DSP, workflow and end-to-end regression suites also pass strict-warning C++17 builds. Musical groove acceptance, native preview invalidation/apply/state/automation, callback CPU (including prediction), high-DPI layout and listening remain required before release.
+
+Expanded kick groove/prediction tests also pass UndefinedBehaviorSanitizer (`kick_guard_ubsan_v110.txt`). Preview Apply invalidates older worker generations before consuming further results, preventing pre-Apply captures from issuing a fresh stale proposal. Native callback/workflow verification remains pending.
+
+All ten portable suites have fresh passing v1.10 results. Expanded groove/preview tests additionally pass UBSan. Native build, pluginval, real-session gap detection and editor/automation acceptance remain pending.
+
+## v1.11.0 — output headroom and advanced duck envelope
+
+Added final stereo sample peak meters (24 dB/sec display decay, 0 dBFS marker) and an audio-thread latched full-scale warning with click/keyboard reset. This is sample-peak monitoring, not true-peak limiting. Advanced duck mode defaults off; explicit 0.1–100 ms attack and 10–1000 ms release override Harshness timing, while Harshness still sets knee. Detector-only sensitivity −24..+24 dB works in either mode with 5 ms smoothing. Parameter IDs are appended and legacy-state defaults initialize the new controls; schema 8. The captured gain-reduction history is now labelled Duck envelope.
+
+Portable duck tests pass strict-warning C++17 builds, including explicit attack/release response, detector sensitivity and unchanged simple timing when advanced is off. Native regression assertions cover final stereo peak readings, clipping latch through safe output and reset; native compilation, meter/UI behavior, state/automation and musical listening are unexecuted here. Prior portable alignment/view results remain applicable because their processing was unchanged.
+
+Expanded advanced ducking tests also pass UndefinedBehaviorSanitizer (`advanced_duck_ubsan_v111.txt`). Native output-meter and envelope integration remain pending.
+
+## v1.12.0 — spectral phase view and optional manual all-pass
+
+Added worker-thread 8192-sample Hann FFT phase diagnostics over 32 log bands, with raw Before and actual processed/pre-duck After on the strongest analysis channel. Brightness is within-band cross-phase concentration with an energy floor, not temporal coherence or calibrated confidence. Manual stereo-linked second-order all-pass centre/Q controls default off; coefficients and enable mix use 20 ms time constants. Settled processing has unity magnitude; transitions may change level and frequency-dependent group delay affects attacks/tails. Analyze does not optimize rotation. Neutral/timing-only/neither audition bypass rotation. Added conservative 300 ms tail reporting and rotation-settling verification gating; state schema 9 appends/migrates rotation defaults.
+
+Portable phase tests cover 44.1/48/96/192 kHz, 40/80/400/3000 Hz steady-state magnitude, stereo linking, disable settling, 180° centre relationship, impulse-energy conservation at extreme Q and spectral polarity correction/silence. Native compiler, wrapper/state/rotation-audition tests, spectral display/DPI, callback CPU and real musical listening remain pending. Spectral optimization is not implemented or claimed. Full CTest has eleven portable suites plus one native suite.
+
+Expanded phase tests pass strict-warning C++17 and UndefinedBehaviorSanitizer (`phase_tools_v112.txt`, `phase_tools_ubsan_v112.txt`). Added native wrapper centre-phase and rotation recall assertions; they remain unexecuted here. Prior portable results remain applicable for unchanged alignment/ducking cores.
+
+## v1.12.1 — collapsible controls and compact layout
+
+Grouped nonessential controls into five individually collapsible sections; primary profile/mode, preview, manual trim/polarity, lock and mix/gain remain visible. All sections default collapsed, active effects retain header status and hidden settings remain attached/processing. An editor-owned Viewport scrolls controls without scrolling sliders into parameter changes. Layout reflows based on expansion with a 310 px visualization reservation; default 1080×960 and minimum 940×900. Expansion mask is nonautomatable state metadata (`editorSections`, bounded to five bits); schema 10, legacy default collapsed. Native recall assertion added. Source inspection only: this is an editor/state-metadata change; native compilation, expansion/scroll/focus behavior, DPI and restored-state layout remain untested here. Portable DSP results do not validate the GUI.
+
+## v1.12.2 — useful spectral curves and inspection
+
+Expanded to 64 bands, relative per-bin joint-energy floor and combined Before/After phase concentration. Supported adjacent bands draw curves; phase wraps and weak/empty bands break them, with isolated markers retained. Added Before/After visibility toggles, log-frequency grids, zero/±180° guides, relative-energy shading and hover readouts for band bounds, phase, support and relative joint energy. Hold view now freezes both waveform and spectral snapshots. An atomic epoch and GUI snapshot prevent mixed-frame band rendering; reads skip busy updates without waiting. FFT length/resolution remains 8192 samples; more display bands do not add physical resolution. Band support is still not temporal coherence.
+
+Added portable connectivity tests for wrap/gap/low-support handling and native pixel-gap assertions. Native compiler/UI/hover/hold/high-DPI validation remains pending.
+
+Expanded phase/spectrum tests pass strict-warning C++17 and UndefinedBehaviorSanitizer (`spectral_curves.txt`, `spectral_curves_ubsan.txt`). Native spectrum pixel-gap, hover, Hold and visibility tests remain unexecuted here.
+
+## v1.12.3 — audible proposal preview
+
+Hear proposal is a nonpersisted request handled on the audio callback. It substitutes proposed timing/polarity in the processing path, with current manual controls and effects, without writing held correction or Undo. It temporarily overrides component audition/unaligned comparison while preserving their parameters; turning off restores their behavior. Apply/new proposal/settings invalidation/bypass/missing reference end temporary audition. The actual heard samples feed After scope, spectrum and output meters. Existing delay/polarity/rotation smoothing remains in use. Added native start/stop, held-state/Undo preservation, comparison-choice preservation and Apply/end assertions (uncompiled/unexecuted here). Added portable impulse-path tests for temporary timing/polarity, unchanged reference/neutral paths and restoration at three sample rates.
+
+The expanded end-to-end regression suite passes a strict-warning C++17 build with 131329 assertions (`proposal_audition.txt`). Native proposal-audition assertions are provided but remain uncompiled/unexecuted; GUI state, callback invalidation and musical comparison require DAW validation.
+
+## v1.13.0 — audio-only multi-step history
+
+Added a fixed-capacity 128-step message-thread history for normalized audio parameters and coherent held delay/polarity in milliseconds. GUI gestures, kick preset and Reset are grouped; new edits discard Redo. Continuous tracking replaces its current step; ungestured host automation is grouped after 250 ms quiet or explicit Undo. Parameter restoration uses host notifications on the message thread; learned correction restoration and stale-job invalidation use the audio callback. No history allocation or lock was added to the audio callback. Preview/Hear proposal and display preferences remain outside history. Loaded sessions retain their audio/view state but establish a new history baseline (schema 11).
+
+All **12 portable suites** were rebuilt with C++17 `-O2 -Wall -Wextra -Wpedantic -Werror -pthread` and passed, including 81 new history checks and 131329 alignment regression assertions. The new history suite also passed UndefinedBehaviorSanitizer. Native history integration tests were expanded for gestures, grouped presets, display exclusion, applied correction Undo/Redo, reversible Reset, state recall, branching and stopped navigation. **JUCE compilation, native tests, editor rendering and DAW/pluginval checks remain unexecuted here.** CTest now has 13 suites: 12 portable and one native.
+
+## v1.14.0 — fresh verification and optional section collection
+
+Added two appended workflow parameters: Verify after apply (default On) and Collect multiple sections (default Off), schema 12 migration, both excluded from audio history. Post-Apply verification uses matched-latency unaligned/output capture, actual phase rotation, pre-duck processing, waiting/settling guards and independent capture epochs. Kick/bass compares supported reference-onset events over four seconds; Same source aggregates fresh supported correlation windows for at least one second with a two-second timeout. No automatic correction is made from this check.
+
+The worker-owned section bank stores 2–4 complete kick captures or supported same-source frames (maximum 64 per section). A common per-section candidate is evaluated against every retained section; mean improvement must exceed 0.02, at least 75% improve, and no section can be harmed by more than 0.02. Kick groove cap/gap guards apply to every section. Rejected/contradictory collections retain held correction. Captures are ephemeral, with generation/epoch invalidation on settings changes.
+
+All **13 portable suites** rebuilt and passed under C++17 strict warnings, including **33 session-analysis checks**, **82 audio-history checks** and **131329 alignment regression assertions**. Session analysis also passed UndefinedBehaviorSanitizer. Fresh-output tests additionally exercised the real AudioEngine neutral/corrected paths and filtered captures at 44.1, 48 and 96 kHz. New native integration assertions cover two captured kick sections, common proposal/Apply, fresh verification without changing correction, workflow-history exclusion and state recall. **Native JUCE compile/UI and this new wrapper workflow have not been executed in this environment.** The user reports successful DAW testing of prior builds; that does not validate this newly added workflow. CTest now has 14 suites: 13 portable and one native.

@@ -17,6 +17,11 @@ float signal(double n,double rate){
     return float(result/37);
 }
 int main(){try{
+    for(double rate:{44100.0,48000.0,96000.0}){
+        AudioEngine audition;audition.prepare(rate,0,false);const int proposed=96;audition.setCorrection(proposed,true);for(int n=0;n<int(rate*.05);++n)audition.process({0,0},{0,0});require(!audition.isSettling(),"proposal transition did not settle");
+        for(int n=0;n<=audition.getLatency();++n){const float impulse=n==0?1.f:0.f;auto output=audition.process({impulse,impulse},{impulse,impulse});if(n==audition.getLatency()-proposed)require(std::abs(output.a[0]+1)<1e-5,"temporary proposal timing/polarity impulse wrong");if(n==audition.getLatency())require(std::abs(output.b[0]-1)<1e-5 && std::abs(output.neutralA[0]-1)<1e-5,"temporary audition changed reference or neutral path");}
+        audition.setCorrection(0,false);for(int n=0;n<int(rate*.05);++n)audition.process({0,0},{0,0});for(int n=0;n<=audition.getLatency();++n){const float impulse=n==0?1.f:0.f;auto output=audition.process({impulse,impulse},{0,0});if(n==audition.getLatency())require(std::abs(output.a[0]-1)<1e-5,"turning proposal off did not restore original path");}
+    }
     Estimator estimator;
     std::array<float,frameSize> a{},b{},postA{},postB{};
     std::ofstream evidence("alignment_metrics.csv");

@@ -1,0 +1,20 @@
+hits=7 lag=24 confidence=1 gain=1.12842
+PASS consistent hits accepted
+PASS polarity recovered
+PASS timing recovered
+PASS interaction improves
+PASS timing-only preserves polarity
+PASS polarity-only preserves timing
+PASS preserve timing still learns useful polarity
+PASS preserve polarity still learns useful timing
+PASS groove search respects maximum new shift
+PASS 180 BPM-like connected pattern rejects advance-created tail gap
+PASS unchanged groove is not rejected
+PASS groove guard also catches delayed bass onset gap
+PASS preview predicts corrected relationship
+PASS preview distinguishes polarity at fixed timing
+PASS measure only preserves correction
+PASS silence rejected
+PASS conflicting held-out kick hits rejected
+PASS nonfinite rejected
+PASS four second capture duration

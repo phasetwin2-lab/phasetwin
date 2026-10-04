@@ -1,4 +1,5 @@
 #include "KickAlignment.h"
+#include "AudioEngine.h"
 #include <iostream>
 #include <cstdlib>
 #include <memory>
@@ -11,6 +12,13 @@ int main(){
  KickConfig timingOnly;timingOnly.allowPolarity=false;auto timingResult=analyzer.analyse(data,timingOnly);check(!timingResult.inverted,"timing-only preserves polarity");
  KickConfig polarityOnly;polarityOnly.allowTiming=false;polarityOnly.currentLag=24;auto polarityResult=analyzer.analyse(data,polarityOnly);check(std::abs(polarityResult.lag-24)<1e-9,"polarity-only preserves timing");check(polarityResult.reliable && polarityResult.inverted,"preserve timing still learns useful polarity");
  KickConfig heldPolarity;heldPolarity.currentInverted=true;heldPolarity.allowPolarity=false;auto heldResult=analyzer.analyse(data,heldPolarity);check(heldResult.reliable && heldResult.inverted && std::abs(heldResult.lag-24)<1,"preserve polarity still learns useful timing");
+ KickConfig guarded;guarded.preserveGroove=true;guarded.grooveLimit=12;auto guardedResult=analyzer.analyse(data,guarded);check(std::abs(guardedResult.lag)<=12.0001,"groove search respects maximum new shift");
+ std::array<float,4000> grooveA{},grooveB{};for(int n=0;n<4000;++n){int phase=n%2000;grooveB[n]=phase<500?.7f:0;grooveA[n]=phase>=500?.7f:0;}
+ check(createsGrooveGap(grooveA.data(),grooveB.data(),4000,0,2000,0,120),"180 BPM-like connected pattern rejects advance-created tail gap");
+ check(!createsGrooveGap(grooveA.data(),grooveB.data(),4000,0,2000,0,0),"unchanged groove is not rejected");
+ check(createsGrooveGap(grooveA.data(),grooveB.data(),4000,0,2000,0,-120),"groove guard also catches delayed bass onset gap");
+ check(predictedCorrelation(data.audio[0].data(),data.audio[2].data(),data.count,24,true)>.99,"preview predicts corrected relationship");
+ check(predictedCorrelation(data.audio[0].data(),data.audio[2].data(),data.count,24,false)<-.99,"preview distinguishes polarity at fixed timing");
  KickConfig c;c.allowTiming=false;c.allowPolarity=false;r=analyzer.analyse(data,c);check(r.lag==0 && !r.inverted,"measure only preserves correction");
  auto silentStorage=std::make_unique<KickData>();auto& silence=*silentStorage;silence.count=kickCaptureSize;check(!analyzer.analyse(silence,{}).reliable,"silence rejected");
  for(int i=0;i<data.count;++i){int hit=(i-24)/3000;if(hit%2==0)data.audio[0][i]=data.audio[1][i]=-data.audio[0][i];}

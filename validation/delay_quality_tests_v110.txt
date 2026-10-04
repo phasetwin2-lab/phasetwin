@@ -1,0 +1,24 @@
+worst relative RMS error=0.000225688 (-72.9298 dB)
+PASS 20 frequency/fraction combinations below -60 dB error through 0.45 sample rate
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS interpolation guard preserves quality at both delay limits
+PASS timing change blends fixed delay taps and settles within 20 ms
+PASS empty verification block safely rejected
