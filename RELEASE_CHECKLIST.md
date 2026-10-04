@@ -24,3 +24,10 @@ Portable DSP test passes are recorded in TEST_RESULTS.md. Native wrapper/GUI/plu
 - [ ] Resizing, 100/125/150/200% DPI, keyboard focus, numeric editing and help dialog work in each supported host.
 
 - [ ] Stacked/Summed changes both panels; exact opposite-polarity inputs show a zero sum and aligned inputs constructive peaks. Output mix/gain and trace visibility must not alter the unity-sum view. Verify saved-state recall, new kick/filled defaults and legacy stacked states.
+
+- [ ] Automatic correction selector offers exactly three mutually exclusive modes, automates/recalls correctly and preserves disabled correction plus manual controls. Kick preset preserves mode. Verify legacy migration, in-flight mode changes, and Reset then Preserve timing on programmed kick/bass patterns.
+- [ ] Scope button switches both panels and recalls Stacked/Summed across session reload at minimum and high-DPI editor sizes.
+- [ ] Ducking defaults off; Amount/Harshness automate smoothly, stereo A remains linked and mixed B stays unducked. Verify reduction meter, reference-level sensitivity, missing/silent sidechain, bypass and legacy presets.
+- [ ] Listen to soft/hard ducking on off-grid kicks at different levels, sample rates and block sizes; confirm analysis/scope remain pre-ducking.
+
+- [ ] Lines/Filled and Reference trigger/Rolling buttons toggle both waveform views, show the current mode and restore correctly. Ducking sliders support dragging, numeric percent entry, double-click reset and host automation.

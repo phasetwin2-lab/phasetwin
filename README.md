@@ -8,7 +8,7 @@ Phase alignment helps signals combine more constructively by correcting timing a
 
 ## Project status
 
-**Current source version: 0.1.0 — initial development release.**
+**Current source version: 1.9.2 — release candidate.**
 
 This repository contains source code, not a standalone application or an installer. Build the VST3 and load it in a compatible DAW.
 
@@ -19,7 +19,7 @@ Portable DSP, capture, scope, and preference tests have passing results recorded
 - **Two analysis profiles:** Kick + bass, and Same source / microphones.
 - **Automatic timing and polarity:** signed sample-delay estimation, fractional refinement, and optional polarity reversal.
 - **High-quality fractional delay:** 64-tap windowed-sinc interpolation, with causal guard samples.
-- **Selective analysis:** allow timing changes, polarity changes, both, or measurement only.
+- **Automatic correction mode:** Timing + polarity (default), Preserve polarity, or Preserve timing.
 - **Learn and hold:** reliable corrections are applied once and retained; unreliable analysis keeps the previous correction.
 - **Manual adjustment:** timing trim and polarity override remain available after analysis.
 - **Monitoring:** Before/After waveforms, Lines/Filled styles, Stacked/Summed views, L/R/mono selection, and shared amplitude scaling.
@@ -55,7 +55,7 @@ Weakly related signals, competing reflections, periodic ambiguity, or offsets at
 
 | Control | Purpose |
 | --- | --- |
-| Learn timing / Learn polarity | Choose which corrections analysis may change. Both off makes the action **Measure**. |
+| Automatic correction | **Timing + polarity** (default) allows both. **Preserve polarity** changes timing only. **Preserve timing** changes polarity only. Choices are mutually exclusive; held corrections and manual controls remain intact. |
 | Timing trim | Add a manual offset to the learned timing, in milliseconds. |
 | Search limit | Set the timing search from ±1 to ±20 ms. Total applied correction is also limited to ±20 ms. |
 | Manual polarity flip | Reverse the learned polarity result without overwriting it. |
@@ -64,6 +64,9 @@ Weakly related signals, competing reflections, periodic ambiguity, or offsets at
 | Continuous tracking | Optional rolling adaptation in same-source mode. Off by default. |
 | Lock correction | Prevent new automatic correction updates. Starting a new analysis explicitly unlocks it. |
 | Add reference B | Add B to the output: 0 = target A only; 1 = A plus full-amplitude B. Analysis still receives B at zero. |
+| Sidechain ducking | Optional, off by default. Latency-matched reference B controls stereo-linked attenuation of target A after alignment. B remains unducked. |
+| Ducking amount slider | 0–100%; maximum reduction is 0–24 dB. Default 50% (up to 12 dB). The reduction meter shows actual attenuation. |
+| Ducking harshness slider | 0–100%; changes attack from 15 to 0.3 ms, release from 250 to 60 ms, and the detector knee. Default 50%. |
 | Output gain | Apply the same gain to corrected and unaligned audition paths. Default and double-click reset: **0.0 dB**. |
 | Hear unaligned | Audition neutral timing/polarity at matched latency and output gain. Learned settings remain intact. |
 | Cancel | Stop the active analysis and hold the existing correction. |
@@ -72,13 +75,21 @@ Weakly related signals, competing reflections, periodic ambiguity, or offsets at
 
 **Positive timing offsets advance A relative to B; negative offsets delay A further.** Relative advance is made causal through the plugin's reported latency.
 
-The Kick + bass preset sets the profile, 180 Hz focus, and learning permissions. It turns continuous tracking off and unlocks updates. It preserves the same-source correlation gate, output gain, and held correction until another reliable result is learned.
+The Kick + bass preset sets the profile and 180 Hz focus while retaining the selected automatic correction mode. It turns continuous tracking off and unlocks updates. It preserves the correction mode, the same-source correlation gate, output gain, and held correction until another reliable result is learned.
+
+**Preserve timing keeps any previously learned advance/delay and manual trim.** To retain your original programmed kick/bass timing, first Reset alignment, then choose Preserve timing and Analyze. Switching modes does not reset held corrections. Preserve polarity similarly keeps the existing polarity. This is polarity inversion, not continuous phase rotation.
+
+Older timing-only and polarity-only presets migrate to the matching mode. Legacy measure-only presets load in Preserve timing with Lock correction enabled; starting Analyze explicitly unlocks and uses the displayed mode. The old permission parameters remain as legacy state fields, but new automation should use Automatic correction.
 
 Cancel and Undo requests are processed on the next audio callback. If playback is stopped, resume processing to complete the request.
 
+Ducking uses a fixed detector region from −36 to −12 dBFS, so reference level affects the response. It is envelope-based, not a drawn volume-shaping curve. Controls and enable changes are smoothed, and ducking adds no latency. Analysis, scores and scope remain pre-ducking; the reduction meter describes the separate volume effect. Hear unaligned keeps ducking active for a fair comparison of alignment. Host bypass returns to the neutral, unducked target.
+
 ## Waveform monitoring
 
-Both panels use one shared automatic amplitude scale. They show the captured signals before output mixing and gain.
+Click **Waveforms: Filled / Lines**, **Reference trigger / Capture: Rolling**, or **Scope: Stacked / Summed** to switch the display modes directly. All choices are saved in the session.
+
+Both panels use one shared automatic amplitude scale. They show the captured signals before ducking, output mixing and gain.
 
 | View | Before | After |
 | --- | --- | --- |
@@ -137,7 +148,7 @@ A `.vst3` is a plugin bundle, not a standalone `.exe`. Copy the complete bundle 
 
 ### Build and validate
 
-With a local `pluginval.exe`, the supplied script builds Release x64, runs all ten CTest suites, and validates the plugin at strictness levels 5 and 10:
+With a local `pluginval.exe`, the supplied script builds Release x64, runs all eleven CTest suites, and validates the plugin at strictness levels 5 and 10:
 
 ```powershell
 ./BUILD_AND_VALIDATE.ps1 -JuceDir "C:/dev/JUCE" -PluginvalPath "C:/tools/pluginval.exe"
@@ -147,7 +158,7 @@ Logs are written to `build-release/logs`. The script stops on a failed step. Fin
 
 ### Portable tests without JUCE
 
-The nine portable test suites can also be built independently:
+The ten portable test suites can also be built independently:
 
 ```sh
 cmake -S . -B build-dsp -DPHASETWIN_DSP_ONLY=ON
@@ -177,7 +188,7 @@ The full build additionally includes the native JUCE integration test. Recorded 
 | **2** | Spectral coherence/phase visualization and optional frequency-dependent phase optimization | Planned |
 | **3** | Multi-instance communication, reference selection, and multi-track group alignment | Planned |
 
-Spectral correction, phase-rotation controls, multi-instance grouping, bass-mono processing, and a ducking shaper are not currently implemented.
+Spectral correction, phase-rotation controls, multi-instance grouping, bass-mono processing, and a drawn-curve ducking shaper are not currently implemented. Envelope sidechain ducking is available.
 
 See [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md) for the staged design, [RELEASE_GAPS.md](RELEASE_GAPS.md) for outstanding priorities, and [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) for release acceptance.
 
@@ -190,3 +201,33 @@ Keep changes focused and run the relevant tests. New automatic corrections shoul
 ## License
 
 Original PhaseTwin source is licensed under the **MIT License**; see [LICENSE](LICENSE). JUCE and its third-party dependencies have separate license terms and are not included in this repository's license grant.
+
+## Recent changes
+
+Improve alignment controls, waveform monitoring and sidechain ducking
+
+- Replace independent timing/polarity permissions with three mutually exclusive automatic correction modes:
+  - Timing + polarity (default)
+  - Preserve polarity: adjust timing only
+  - Preserve timing: adjust polarity only
+- Preserve existing learned corrections and manual overrides when switching modes.
+- Apply the selected mode to both one-shot learning and continuous tracking.
+- Keep the selected correction mode when applying the Kick + bass preset.
+- Migrate legacy timing/polarity settings and save the new selector in plugin state.
+
+- Add optional stereo-linked sidechain ducking, disabled by default.
+- Use reference B to attenuate target A after alignment, leaving B unducked.
+- Add Amount and Harshness sliders with editable percentages and a gain-reduction readout.
+- Support up to 24 dB attenuation; Harshness adjusts attack, release and detector knee.
+- Smooth ducking transitions without adding latency.
+- Keep alignment analysis, scores and waveform monitoring pre-ducking.
+
+- Replace Stacked/Summed, Filled/Lines and Reference trigger/Rolling dropdowns with click-to-switch buttons.
+- Apply waveform choices to both Before and After panels and preserve them in session state.
+- Improve control labels, tooltips and help text, including clarification that Preserve timing retains existing offsets until Reset.
+
+- Extend portable ducking and selective-correction tests.
+- Add native regression coverage for state migration, mode recall, ducking output and bypass.
+- Update README, validation results and release checklist.
+
+Validation: all ten portable suites passed for the ducking update; relevant alignment suites passed after the correction-mode changes. Ducking and kick selective-correction tests also passed UndefinedBehaviorSanitizer. Native VST3 compilation, GUI checks and DAW validation remain pending.

@@ -76,7 +76,7 @@ public:
         for(int wave=summed?4:0;wave<(summed?6:4);++wave){auto range=history().range(wave,channel,0,count,count);peak=std::max(peak,std::max(std::abs(range.first),std::abs(range.second)));}
         auto bounds=getLocalBounds().toFloat();auto top=bounds.removeFromTop((bounds.getHeight()-8)/2);bounds.removeFromTop(8);
         panel(g,top,0,summed?"BEFORE SUM  /  A + B at unity":"BEFORE  /  A input + B input",count,1/peak);
-        panel(g,bounds,4,summed?"AFTER SUM  /  corrected A + latency-matched B at unity":"AFTER  /  corrected A + latency-matched B (before mix / gain)",count,1/peak);
+        panel(g,bounds,4,summed?"AFTER SUM  /  aligned A + B · pre-duck / mix / gain":"AFTER  /  aligned A + B · pre-duck / mix / gain",count,1/peak);
         if(!summed && !showA && !showB){g.setColour(juce::Colours::white);g.drawText("Enable A or B to view a waveform",getLocalBounds(),juce::Justification::centred);}
         else if(count==0){g.setColour(juce::Colours::white);g.drawText((triggerMode?"Waiting for a transient on B and a complete capture":"Play audio to see both waveforms"),getLocalBounds(),juce::Justification::centred);}
     }
@@ -88,16 +88,21 @@ class PhaseTwinControls final : public juce::Component {
     std::array<juce::Slider,6> sliders;
     std::array<juce::Label,6> labels;
     std::array<std::unique_ptr<SliderAttachment>,6> sliderAttachments;
-    std::array<juce::ToggleButton,5> toggles;
-    std::array<std::unique_ptr<ButtonAttachment>,5> buttonAttachments;
-    juce::ComboBox profile;
+    std::array<juce::ToggleButton,3> toggles;
+    juce::Slider duckAmount,duckHarshness;
+    juce::Label correctionLabel,duckAmountLabel,duckHarshnessLabel,duckMeter;
+    juce::ToggleButton duckEnabled{"Sidechain ducking"};
+    std::unique_ptr<SliderAttachment> duckAmountAttachment,duckHarshnessAttachment;
+    std::unique_ptr<ButtonAttachment> duckEnabledAttachment;
+    std::array<std::unique_ptr<ButtonAttachment>,3> buttonAttachments;
+    juce::ComboBox profile,correctionMode;
     juce::TextButton kickPreset{"Kick + bass preset"};
     juce::Label profileLabel;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> profileAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> profileAttachment,correctionAttachment;
 public:
     explicit PhaseTwinControls(PhaseTwinProcessor& p){
         const char* ids[]={"manual","range","confidence","band","mix","gain"};
-        const char* names[]={"Timing trim · added to learned offset","Search limit · both directions","Input correlation gate · same source only","Analysis focus · output stays full-band","Add reference B · 0 = target only","Output gain · aligned and unaligned"};
+        const char* names[]={"Timing trim (ms)","Search ± (ms)","Correlation gate · same source","Analysis focus (Hz)","Add B · 0 = target only","Output gain (dB)"};
         const char* tips[]={"Adds to the learned correction. Positive lag means A arrives later and is advanced relative to B.","Maximum timing search. This version supports ±20 ms.","Same-source analysis only: reject input windows below this correlation threshold. Kick/bass learning does not use this gate. This is not learn confidence.","Kick/bass measurement only: 25 Hz high-pass and this low-pass. It does not filter the output.","0: A only. 1: A plus B. B always feeds sidechain analysis, even at zero.","Applied equally to aligned and neutral comparison; reference sum can require headroom."};
         for(int i=0;i<6;++i){addAndMakeVisible(sliders[i]);addAndMakeVisible(labels[i]);labels[i].setText(names[i],juce::dontSendNotification);
             sliders[i].setName(names[i]);labels[i].setTooltip(tips[i]);
@@ -106,28 +111,44 @@ public:
             sliders[i].setDoubleClickReturnValue(true,i==1?20:i==2?.65:i==3?180:0);
             sliderAttachments[i]=std::make_unique<SliderAttachment>(p.parameters,ids[i],sliders[i]);
             sliders[i].setNumDecimalPlacesToDisplay(i==0?3:i==3?0:i==2 || i==4?2:1);}
-        const char* buttonIds[]={"allowDelay","allowPolarity","auto","freeze","polarity"};
-        const char* buttonNames[]={"Learn timing","Learn polarity","Continuous tracking","Lock correction","Manual polarity flip"};
-        for(int i=0;i<5;++i){addAndMakeVisible(toggles[i]);toggles[i].setButtonText(buttonNames[i]);buttonAttachments[i]=std::make_unique<ButtonAttachment>(p.parameters,buttonIds[i],toggles[i]);}
-        toggles[0].setTooltip("Allow learning to change timing. Turn timing and polarity off for measure-only.");
-        toggles[1].setTooltip("Allow learning to change polarity. Manual trim and polarity override are preserved.");
-        toggles[2].setTooltip("Same-source mode only. Kick/bass uses four-second learning and holds the result.");
+        const char* buttonIds[]={"auto","freeze","polarity"};
+        const char* buttonNames[]={"Continuous tracking","Lock correction","Manual polarity flip"};
+        for(int i=0;i<3;++i){addAndMakeVisible(toggles[i]);toggles[i].setButtonText(buttonNames[i]);buttonAttachments[i]=std::make_unique<ButtonAttachment>(p.parameters,buttonIds[i],toggles[i]);}
+        toggles[0].setTooltip("Same-source mode only. Kick/bass uses session learning and holds its result.");
+        addAndMakeVisible(correctionMode);addAndMakeVisible(correctionLabel);correctionLabel.setText("Automatic correction",juce::dontSendNotification);
+        correctionMode.setName("Automatic correction");correctionMode.addItem("Timing + polarity",1);correctionMode.addItem("Preserve polarity",2);correctionMode.addItem("Preserve timing",3);
+        correctionMode.setTooltip("Timing + polarity allows both automatic corrections. Preserve polarity changes timing only. Preserve timing changes polarity only and keeps existing timing, including learned advance and manual trim. Reset alignment first to restore original timing. Manual controls stay available.");
+        correctionAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.parameters,"correctionMode",correctionMode);
+        for(auto* c:{static_cast<juce::Component*>(&duckEnabled),static_cast<juce::Component*>(&duckAmount),static_cast<juce::Component*>(&duckHarshness),static_cast<juce::Component*>(&duckAmountLabel),static_cast<juce::Component*>(&duckHarshnessLabel),static_cast<juce::Component*>(&duckMeter)})addAndMakeVisible(c);
+        duckEnabledAttachment=std::make_unique<ButtonAttachment>(p.parameters,"duckEnabled",duckEnabled);
+        duckAmountLabel.setText("Ducking amount",juce::dontSendNotification);duckHarshnessLabel.setText("Ducking harshness",juce::dontSendNotification);
+        for(auto* slider:{&duckAmount,&duckHarshness}){slider->setSliderStyle(juce::Slider::LinearHorizontal);slider->setTextBoxStyle(juce::Slider::TextBoxRight,false,75,24);slider->setDoubleClickReturnValue(true,50);slider->setTextValueSuffix(" %");}
+        duckAmountAttachment=std::make_unique<SliderAttachment>(p.parameters,"duckAmount",duckAmount);duckHarshnessAttachment=std::make_unique<SliderAttachment>(p.parameters,"duckHarshness",duckHarshness);
+        duckAmount.setTooltip("0% = no ducking. 100% = up to 24 dB reduction of A only. Actual reduction depends on B level. B is never ducked.");
+        duckHarshness.setTooltip("Higher = quicker attack, shorter release and a firmer knee. Lower = rounder, slower ducking. Attack 15–0.3 ms; release 250–60 ms.");
+        duckEnabled.setTooltip("Optional stereo-linked envelope ducking from latency-matched B. Applies after alignment, before output sum/gain. Analysis and scope stay pre-ducking. Off by default.");
         addAndMakeVisible(profile);addAndMakeVisible(profileLabel);profileLabel.setText("Analysis profile",juce::dontSendNotification);
         profile.addItem("Same source / microphones",1);profile.addItem("Kick + bass / low-end focus",2);
         profileAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.parameters,"profile",profile);
-        profile.onChange=[this]{sliders[3].setEnabled(profile.getSelectedId()==2);sliders[2].setEnabled(profile.getSelectedId()==1);toggles[2].setEnabled(profile.getSelectedId()==1);};
-        addAndMakeVisible(kickPreset);kickPreset.setTooltip("Set kick profile and 180 Hz analysis focus; allow timing/polarity learning. Existing correction is held until you learn. The same-source correlation gate and output gain are left unchanged.");
+        profile.onChange=[this]{sliders[3].setEnabled(profile.getSelectedId()==2);sliders[2].setEnabled(profile.getSelectedId()==1);toggles[0].setEnabled(profile.getSelectedId()==1);};
+        addAndMakeVisible(kickPreset);kickPreset.setTooltip("Set kick profile and 180 Hz analysis focus; preserve the automatic correction mode. Existing correction is held until you learn. The same-source correlation gate and output gain are left unchanged.");
         kickPreset.onClick=[&p]{
             auto set=[&p](const char* id,float value){auto* parameter=p.parameters.getParameter(id);parameter->beginChangeGesture();parameter->setValueNotifyingHost(parameter->convertTo0to1(value));parameter->endChangeGesture();};
-            set("profile",1);set("band",180);set("allowDelay",1);set("allowPolarity",1);set("auto",0);set("freeze",0);
+            set("profile",1);set("band",180);set("auto",0);set("freeze",0);
         };
-        sliders[3].setEnabled(profile.getSelectedId()==2);sliders[2].setEnabled(profile.getSelectedId()==1);toggles[2].setEnabled(profile.getSelectedId()==1);
+        sliders[3].setEnabled(profile.getSelectedId()==2);sliders[2].setEnabled(profile.getSelectedId()==1);toggles[0].setEnabled(profile.getSelectedId()==1);
     }
     void resized()override{
+        const int column=getWidth()/3;
+        duckEnabled.setBounds(10,169,column-20,26);duckMeter.setBounds(10,197,column-20,20);
+        duckAmountLabel.setBounds(column+10,168,column-20,18);duckAmount.setBounds(column+10,188,column-20,27);
+        duckHarshnessLabel.setBounds(column*2+10,168,column-20,18);duckHarshness.setBounds(column*2+10,188,column-20,27);
         profileLabel.setBounds(10,8,130,26);profile.setBounds(145,8,315,28);kickPreset.setBounds(480,8,190,28);
-        for(int i=0;i<5;++i)toggles[i].setBounds(8+i*(getWidth()/5),38,getWidth()/5-8,26);
-        for(int i=0;i<6;++i){int x=(i%2)*(getWidth()/2),y=72+(i/2)*44;labels[i].setBounds(x+10,y,getWidth()/2-20,18);sliders[i].setBounds(x+10,y+18,getWidth()/2-20,27);}
+        correctionLabel.setBounds(10,38,150,26);correctionMode.setBounds(160,38,210,26);
+        const int toggleWidth=(getWidth()-390)/3;for(int i=0;i<3;++i)toggles[i].setBounds(390+i*toggleWidth,38,toggleWidth-5,26);
+        for(int i=0;i<6;++i){int x=(i%3)*(getWidth()/3),y=72+(i/3)*44;labels[i].setBounds(x+10,y,getWidth()/3-20,18);sliders[i].setBounds(x+10,y+18,getWidth()/3-20,27);}
     }
+    void setDuckReduction(float db){duckMeter.setText("Reduction: "+juce::String(db,1)+" dB",juce::dontSendNotification);}
     void paint(juce::Graphics& g)override{g.setColour(juce::Colour(0xff19232d));g.fillRoundedRectangle(getLocalBounds().toFloat(),6);}
 };
 
@@ -136,7 +157,9 @@ class PhaseTwinEditor final : public juce::AudioProcessorEditor,private juce::Ti
     PhaseTwinControls controls;
     PhaseTwinScope oscilloscope;
     juce::Label title,status,hint,legend;
-    juce::ComboBox channel,beatLength,scopeMode,scopeStyle,scopeComposition;
+    juce::ComboBox channel,beatLength;
+    juce::TextButton scopeMode{"Capture: Trigger"},scopeStyle{"Waveforms: Filled"};
+    juce::TextButton scopeComposition{"Scope: Stacked"};
     juce::ToggleButton visibleA{"Show A"},visibleB{"Show B"};
     juce::Label viewHint;
     juce::TextButton undoLearn{"Undo last analyze"},help{"Quick help"};
@@ -160,23 +183,23 @@ public:
         title.setFont(juce::Font(juce::FontOptions(24.0f)));
         title.setColour(juce::Label::textColourId,juce::Colour(0xff72e9c6));
         legend.setText("A = mint     B = amber",juce::dontSendNotification);
-        hint.setText("1. Target on A · reference into sidechain B.  2. Play both · Analyze.  3. Compare with Hear unaligned.\nAdd reference B = 0 outputs target only. Positive offset advances A relative to B. Timing + polarity off = measure only.",juce::dontSendNotification);
+        hint.setText("1. Target on A · reference into sidechain B.  2. Play both · Analyze.  3. Compare with Hear unaligned.\nAdd B = 0: target only. Positive offset advances A. Preserve timing keeps offsets; Reset clears them.",juce::dontSendNotification);
         hint.setFont(juce::Font(juce::FontOptions(12.0f)));
         viewHint.setFont(juce::Font(juce::FontOptions(12.0f)));
         hint.setColour(juce::Label::textColourId,juce::Colour(0xffb5bcc9));
         channel.addItem("Left",1);channel.addItem("Right",2);channel.addItem("Mono average",3);channel.setSelectedId(1);
-        scopeStyle.addItem("Waveforms: lines",1);scopeStyle.addItem("Waveforms: filled",2);scopeStyle.setSelectedId(2);scopeStyle.onChange=[this]{oscilloscope.setFilled(scopeStyle.getSelectedId()==2);saveView();};
+        scopeStyle.setClickingTogglesState(true);scopeStyle.setToggleState(true,juce::dontSendNotification);scopeStyle.onClick=[this]{applyScopeButtons();saveView();};
         scopeStyle.setName("Waveform style");scopeMode.setName("Scope capture mode");channel.setName("Scope channel");beatLength.setName("Scope note division");windowMs.setName("Scope window milliseconds");oscilloscope.setName("Before and after waveform comparison");
-        scopeComposition.addItem("Stacked: A & B",1);scopeComposition.addItem("Summed: A + B",2);scopeComposition.setSelectedId(1);scopeComposition.setName("Scope stacked or summed");scopeComposition.setTooltip("Stacked keeps the two source traces. Summed shows the sample-by-sample unity sum in both Before and After. It is independent of Add B/output gain; no audio changes.");
-        scopeComposition.onChange=[this]{applyComposition();saveView();};
-        scopeStyle.setTooltip("Lines show waveform outlines; filled adds translucent signed areas while retaining outlines and peaks. Neither changes the audio or the shared scale.");
+        scopeComposition.setClickingTogglesState(true);scopeComposition.setName("Switch stacked/summed scope");scopeComposition.setTooltip("Click to switch both Before/After panels between source traces and unity sum. Display only; does not change output mixing.");
+        scopeComposition.onClick=[this]{applyComposition();saveView();};
+        scopeStyle.setTooltip("Click to switch Filled/Lines. Lines show waveform outlines; filled adds translucent signed areas while retaining outlines and peaks. Neither changes the audio or the shared scale.");
         visibleA.setToggleState(true,juce::dontSendNotification);visibleB.setToggleState(true,juce::dontSendNotification);
         visibleA.onClick=visibleB.onClick=[this]{oscilloscope.setVisibleWaves(visibleA.getToggleState(),visibleB.getToggleState());saveView();};
         visibleA.setTooltip("Hide/show target A visually. Audio and analysis continue.");visibleB.setTooltip("Hide/show reference B visually. Triggering, audio and analysis continue.");
         viewHint.setText("Display only",juce::dontSendNotification);
-        scopeMode.addItem("Reference trigger",1);scopeMode.addItem("Rolling",2);scopeMode.setSelectedId(1);
-        scopeMode.onChange=[this]{oscilloscope.setTriggered(scopeMode.getSelectedId()==1);saveView();};
-        scopeMode.setTooltip("Reference trigger holds the latest complete window, anchored to B. Rolling scrolls continuously. Hold freezes either view. This does not change audio or learning.");
+        scopeMode.setClickingTogglesState(true);scopeMode.setToggleState(true,juce::dontSendNotification);
+        scopeMode.onClick=[this]{applyScopeButtons();saveView();};
+        scopeMode.setTooltip("Click to switch Reference trigger/Rolling. Reference trigger holds the latest complete window, anchored to B. Rolling scrolls continuously. Hold freezes either view. This does not change audio or learning.");
         channel.onChange=[this]{oscilloscope.setChannel(channel.getSelectedId()-1);saveView();};
         beatLength.addItem("1/64 note",1);beatLength.addItem("1/32 note",2);beatLength.addItem("1/16 note",3);
         beatLength.addItem("1/8 note",4);beatLength.addItem("1/4 note",5);beatLength.addItem("1/2 note",6);beatLength.addItem("1/1 note",7);beatLength.setSelectedId(5);beatLength.onChange=[this]{saveView();};
@@ -184,7 +207,7 @@ public:
         windowMs.setTextBoxStyle(juce::Slider::TextBoxRight,false,80,26);windowMs.setTextValueSuffix(" ms");windowMs.setValue(125);windowMs.onValueChange=[this]{saveView();};
         tempoSync.setToggleState(true,juce::dontSendNotification);windowMs.setEnabled(false);
         tempoSync.onClick=[this]{windowMs.setEnabled(!tempoSync.getToggleState());beatLength.setEnabled(tempoSync.getToggleState());saveView();};
-        alignNow.setTooltip("Capture four seconds in kick mode or two seconds in same-source mode while both sources play. Apply stable timing/polarity only when allowed, then hold. Manual overrides are preserved. Starts a fresh capture, unlocks correction, disables tracking and exits unaligned audition.");
+        alignNow.setTooltip("Capture four seconds in kick mode or two seconds in same-source mode while both sources play. Apply stable timing/polarity according to Automatic correction, then hold. Manual overrides are preserved. Starts a fresh capture, unlocks correction, disables tracking and exits unaligned audition.");
         alignNow.onClick=[this]{
             if(processor.learnState.load()==1){if(auto* parameter=processor.parameters.getParameter("auto"))parameter->setValueNotifyingHost(0);processor.cancelRequest.fetch_add(1);return;}
             auto set=[this](const char* id,float normalized){if(auto* parameter=processor.parameters.getParameter(id)){parameter->beginChangeGesture();parameter->setValueNotifyingHost(normalized);parameter->endChangeGesture();}};
@@ -208,7 +231,7 @@ public:
         pause.onClick=[this]{oscilloscope.setPaused(pause.getToggleState());};
         undoLearn.setTooltip("Restore the correction held before the last successful Analyze/Learn. Manual trim/polarity stay as set. Continuous tracking is turned off. One undo level is available.");
         undoLearn.onClick=[this]{if(auto* parameter=processor.parameters.getParameter("auto"))parameter->setValueNotifyingHost(0);processor.undoRequest.fetch_add(1);};
-        help.onClick=[] {juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,"PhaseTwin · quick help","1. Put PhaseTwin on target A and route reference B into the external sidechain. Both meters must move.\n2. Choose Same source for related microphones, or Kick + bass for low-end interaction. Play a representative section and Analyze.\n3. Read confidence and compare with Hear unaligned. Both analysis permissions off = measure only. Cancel holds your previous correction; Undo restores the previous learned correction.\n\nPositive timing advances A relative to B; negative delays A. Trim adds to learned timing, within ±20 ms. The DAW receives reported compensation latency.\n\nScope Lines/Filled, Stacked/Summed, Show A/B and Hold change the display only. Summed means unity A+B, independent of output mix/gain. Reference trigger holds complete captures. Fill is not gain.\n\nKick score is a session candidate measurement, not live output verification. Confidence is heuristic. Spectral correction and multi-instance grouping are not yet available.");};
+        help.onClick=[] {juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,"PhaseTwin · quick help","1. Put PhaseTwin on target A and route reference B into the external sidechain. Both meters must move.\n2. Choose Same source for related microphones, or Kick + bass for low-end interaction. Play a representative section and Analyze.\n3. Read confidence and compare with Hear unaligned. Automatic correction selects both changes, timing only, or polarity only. Preserve timing holds existing offsets; Reset restores original timing. Cancel holds your previous correction; Undo restores the previous learned correction.\n\nPositive timing advances A relative to B; negative delays A. Trim adds to learned timing, within ±20 ms. The DAW receives reported compensation latency.\n\nScope Lines/Filled, Stacked/Summed, Show A/B and Hold change the display only. Summed means unity A+B, independent of output mix/gain. Reference trigger holds complete captures. Fill is not gain.\n\nKick score is a session candidate measurement, not live output verification. Confidence is heuristic. Preserve polarity holds current polarity; Preserve timing holds current timing. Optional ducking reduces A from B after alignment. Amount sets up to 24 dB depth; Harshness makes attack/release/knee faster and firmer. Scope and alignment metrics stay pre-ducking. Spectral correction and multi-instance grouping are not yet available.");};
         restoreView();setResizable(true,true);setResizeLimits(900,740,1600,1250);setSize(1080,860);startTimerHz(30);
     }
     void paint(juce::Graphics& g)override{g.fillAll(juce::Colour(0xff121820));}
@@ -218,13 +241,20 @@ public:
         legend.setBounds(20,156,170,26);channel.setBounds(200,156,100,26);tempoSync.setBounds(310,156,105,26);
         beatLength.setBounds(420,156,115,26);windowMs.setBounds(545,156,std::min(300,getWidth()-565),26);
         scopeStyle.setBounds(20,188,160,26);scopeComposition.setBounds(190,188,155,26);visibleA.setBounds(355,188,75,26);visibleB.setBounds(435,188,75,26);scopeMode.setBounds(520,188,155,26);pause.setBounds(685,188,100,26);viewHint.setBounds(795,188,getWidth()-815,26);
-        oscilloscope.setBounds(20,224,getWidth()-40,getHeight()-534);controls.setBounds(20,getHeight()-298,getWidth()-40,215);
+        oscilloscope.setBounds(20,224,getWidth()-40,getHeight()-544);controls.setBounds(20,getHeight()-308,getWidth()-40,225);
         resetAlign.setBounds(20,getHeight()-72,160,28);undoLearn.setBounds(190,getHeight()-72,175,28);help.setBounds(getWidth()-150,getHeight()-72,130,28);hint.setBounds(20,getHeight()-38,getWidth()-40,34);
     }
-    void applyComposition(){const bool sum=scopeComposition.getSelectedId()==2;oscilloscope.setSummed(sum);visibleA.setEnabled(!sum);visibleB.setEnabled(!sum);legend.setText(sum?"SUM A+B = violet":"A = mint     B = amber",juce::dontSendNotification);viewHint.setTooltip(sum?"Unity sum for comparison only. Add B and output gain do not affect this view. Both panels share amplitude scale.":"Both source traces share amplitude scale. Display controls do not affect audio.");}
-    void saveView(){phasetwin::ScopePreferences p;p.style=scopeStyle.getSelectedId()-1;p.summed=scopeComposition.getSelectedId()==2;p.mode=scopeMode.getSelectedId()-1;p.channel=channel.getSelectedId()-1;p.division=beatLength.getSelectedId();p.sync=tempoSync.getToggleState();p.milliseconds=windowMs.getValue();p.showA=visibleA.getToggleState();p.showB=visibleB.getToggleState();processor.scopePreferences=p.packed();}
-    void restoreView(){const auto p=phasetwin::ScopePreferences::unpack(processor.scopePreferences.load());seenViewRevision=processor.scopeViewRevision.load();scopeComposition.setSelectedId(p.summed?2:1,juce::dontSendNotification);scopeStyle.setSelectedId(p.style+1,juce::dontSendNotification);scopeMode.setSelectedId(p.mode+1,juce::dontSendNotification);channel.setSelectedId(p.channel+1,juce::dontSendNotification);beatLength.setSelectedId(p.division,juce::dontSendNotification);tempoSync.setToggleState(p.sync,juce::dontSendNotification);windowMs.setValue(p.milliseconds,juce::dontSendNotification);visibleA.setToggleState(p.showA,juce::dontSendNotification);visibleB.setToggleState(p.showB,juce::dontSendNotification);windowMs.setEnabled(!p.sync);beatLength.setEnabled(p.sync);oscilloscope.setFilled(p.style==1);oscilloscope.setChannel(p.channel);oscilloscope.setTriggered(p.mode==0);oscilloscope.setVisibleWaves(p.showA,p.showB);applyComposition();}
+    void applyComposition(){const bool sum=scopeComposition.getToggleState();scopeComposition.setButtonText(sum?"Scope: Summed":"Scope: Stacked");oscilloscope.setSummed(sum);visibleA.setEnabled(!sum);visibleB.setEnabled(!sum);legend.setText(sum?"SUM A+B = violet":"A = mint     B = amber",juce::dontSendNotification);viewHint.setTooltip(sum?"Unity sum for comparison only. Add B and output gain do not affect this view. Both panels share amplitude scale.":"Both source traces share amplitude scale. Display controls do not affect audio.");}
+    void applyScopeButtons(){
+        const bool filled=scopeStyle.getToggleState(),triggered=scopeMode.getToggleState();
+        scopeStyle.setButtonText(filled?"Waveforms: Filled":"Waveforms: Lines");
+        scopeMode.setButtonText(triggered?"Reference trigger":"Capture: Rolling");
+        oscilloscope.setFilled(filled);oscilloscope.setTriggered(triggered);
+    }
+    void saveView(){phasetwin::ScopePreferences p;p.style=scopeStyle.getToggleState()?1:0;p.summed=scopeComposition.getToggleState();p.mode=scopeMode.getToggleState()?0:1;p.channel=channel.getSelectedId()-1;p.division=beatLength.getSelectedId();p.sync=tempoSync.getToggleState();p.milliseconds=windowMs.getValue();p.showA=visibleA.getToggleState();p.showB=visibleB.getToggleState();processor.scopePreferences=p.packed();}
+    void restoreView(){const auto p=phasetwin::ScopePreferences::unpack(processor.scopePreferences.load());seenViewRevision=processor.scopeViewRevision.load();scopeComposition.setToggleState(p.summed,juce::dontSendNotification);scopeStyle.setToggleState(p.style==1,juce::dontSendNotification);scopeMode.setToggleState(p.mode==0,juce::dontSendNotification);channel.setSelectedId(p.channel+1,juce::dontSendNotification);beatLength.setSelectedId(p.division,juce::dontSendNotification);tempoSync.setToggleState(p.sync,juce::dontSendNotification);windowMs.setValue(p.milliseconds,juce::dontSendNotification);visibleA.setToggleState(p.showA,juce::dontSendNotification);visibleB.setToggleState(p.showB,juce::dontSendNotification);windowMs.setEnabled(!p.sync);beatLength.setEnabled(p.sync);applyScopeButtons();oscilloscope.setChannel(p.channel);oscilloscope.setVisibleWaves(p.showA,p.showB);applyComposition();}
     void timerCallback()override{
+        controls.setDuckReduction(processor.duckReductionDb.load());
         if(seenViewRevision!=processor.scopeViewRevision.load())restoreView();
         undoLearn.setEnabled(processor.undoAvailable.load() && processor.learnState.load()!=1);
         const double beats=phasetwin::scopeDivisionBeats(beatLength.getSelectedId());
@@ -240,8 +270,7 @@ public:
         if(idleTicks>20)oscilloscope.clearIfLive();
         oscilloscope.repaint();
         const int state=processor.learnState.load();
-        const bool measureOnly=processor.parameters.getRawParameterValue("allowDelay")->load()<0.5f && processor.parameters.getRawParameterValue("allowPolarity")->load()<0.5f;
-        alignNow.setButtonText(state==1?"CANCEL · "+juce::String(processor.learnProgress.load()*100,0)+"%":(processor.parameters.getRawParameterValue("profile")->load()>0.5f?(measureOnly?"MEASURE · 4 SECONDS":"LEARN · 4 SECONDS"):(measureOnly?"MEASURE · 2 SECONDS":"ANALYZE · 2 SECONDS")));
+        alignNow.setButtonText(state==1?"CANCEL · "+juce::String(processor.learnProgress.load()*100,0)+"%":(processor.parameters.getRawParameterValue("profile")->load()>0.5f?"LEARN · 4 SECONDS":"ANALYZE · 2 SECONDS"));
         score.setText((state==0 || state==5 || state==6) && processor.parameters.getRawParameterValue("profile")->load()>0.5f?juce::String("Kick score  —  learn to measure"):idleTicks>20?juce::String("Alignment score  —  (no live processing)"):(processor.parameters.getRawParameterValue("profile")->load()>0.5f?juce::String("Kick candidate  "):juce::String("After score  "))+juce::String(processor.alignmentScore.load(),1)+"%  (before "+juce::String(processor.beforeScore.load(),1)+"%)",juce::dontSendNotification);
         learnConfidence.setText((state==0 || state==5 || state==6)?juce::String("Confidence  —"):"Confidence  "+juce::String(processor.reliability.load()*100,0)+"%",juce::dontSendNotification);
         juce::String text;

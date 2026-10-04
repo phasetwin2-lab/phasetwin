@@ -1,6 +1,6 @@
 # PhaseTwin product specification
 
-Accepted project direction: 3 October 2026. This document records the user's development brief and governs prioritization. Current source revision: 1.8 release candidate.
+Accepted project direction: 3 October 2026. This document records the user's development brief and governs prioritization. Current source revision: 1.9.1 release candidate.
 
 ## Product goal
 
@@ -60,3 +60,7 @@ BUILD_AND_VALIDATE.ps1 builds the source, runs all ten CTest suites (nine portab
 ## Current workflow preference
 
 Version 1.8 defaults new instances to Kick + bass and filled waveforms at the user’s request. Same-source/microphone alignment remains available. This default choice does not change the staged microphone/spectral/group development goals. Stacked and actual unity-summed Before/After views are available as display-only preferences.
+
+## Optional sidechain ducking
+
+Envelope ducking is separate from alignment: latency-matched B drives a stereo-linked gain applied to A only. Enable defaults off; Amount sets up to 24 dB depth, Harshness controls attack/release/knee. Analysis and waveform diagnostics remain pre-ducking. The detector is level-dependent (fixed −36 to −12 dBFS region). No drawn-curve shaper or additional latency is introduced. Automatic correction uses a three-mode selector: both corrections (default), Preserve polarity or Preserve timing. Preserve means keeping the current value; Reset restores original timing. Manual controls remain independent.

@@ -104,3 +104,21 @@ The native pixel comparison now covers summed rendering even when individual tra
 ## v1.8.1 — default/preset correction
 
 Source inspection confirms output gain and its double-click reset are 0.0 dB; the Kick + bass preset no longer writes the same-source-only correlation gate. The 0.65 parameter default and kick/bass DSP are unchanged. No new DSP tests were needed for these default/preset edits; previous results remain applicable. Native compilation/UI behavior for this patch have not been tested here.
+
+## v1.9.0 — polarity permission, scope button and sidechain ducking
+
+Added a two-position Auto polarity permission knob, a shared Stacked/Summed scope button and optional stereo-linked envelope ducking. Ducking defaults off, affects A only, and runs after alignment. Capture, correlation and scope remain pre-ducking. New parameters are appended to preserve existing parameter order; legacy states explicitly initialize ducking off.
+
+The portable ducking suite passes C++17 with -O2 -Wall -Wextra -Wpedantic -Werror and UndefinedBehaviorSanitizer. It covers default unity, silence, depth at 44.1/48/96/192 kHz, linked stereo/anti-phase reference, harshness attack/release differences, disable settling and invalid data. Native regression coverage was added for A-only attenuation, unducked B summing, stereo output, the reduction meter, parameter recall, legacy-state defaults and host bypass. These native tests and the new GUI remain uncompiled/unexecuted here. All ten portable suites were rebuilt and passed with the same strict compiler flags; logs end in `_v19.txt`. Full CTest now contains ten portable suites and one native suite.
+
+## v1.9.1 — mutually exclusive automatic correction modes
+
+Replaced the independent editor permissions with one automatable selector: Timing + polarity (default), Preserve polarity, or Preserve timing. Both session learning and continuous tracking derive permissions from the selector. Mode changes invalidate older analysis jobs without clearing held correction or manual overrides; the Kick preset retains the selection. State schema 6 appends the selector while retaining old parameter IDs for migration. Legacy timing-only/polarity-only presets map directly; old measure-only presets map to Preserve timing and load locked (Analyze explicitly unlocks). Legacy permission automation no longer controls new analysis.
+
+Kick regression tests verify useful polarity correction while preserving held timing and useful timing correction while preserving inversion. Native regression assertions cover default mode, held-correction preservation, selector recall and all four legacy permission combinations; native tests remain uncompiled/unexecuted in this environment. GUI layout and DAW automation still require local validation.
+
+Kick, workflow and learning portable suites pass fresh C++17 strict-warning builds for this change; kick selective-correction tests also pass UndefinedBehaviorSanitizer. Logs end in `_v191.txt`. Remaining portable suites retain their v1.9.0 results because their DSP was unchanged.
+
+## v1.9.2 — direct scope buttons and ducking sliders
+
+Lines/Filled and Reference trigger/Rolling now use two-state buttons with current-mode labels. Restore explicitly updates labels and display state without triggering save callbacks; packed preference values and defaults are unchanged. Ducking Amount/Harshness use horizontal sliders with numeric percent entry and a 50% double-click reset; their parameter attachments and DSP are unchanged. This is a reversible editor-only change. Native JUCE compilation, mouse/keyboard interaction, layout at supported sizes/DPI and session recall require local validation; existing portable preference/DSP results do not validate the new GUI.

@@ -11,14 +11,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout PhaseTwinProcessor::layout()
     p.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"mix",1},"Add reference B to output",juce::NormalisableRange<float>(0,1,0.01f),0));
     p.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"gain",1},"Output gain (dB)",juce::NormalisableRange<float>(-24,6,0.1f),0));
     p.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"profile",1},"Analysis profile",juce::StringArray{"Same source","Kick / bass focus"},1));
-    p.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"allowDelay",1},"Learn may change timing",true));
-    p.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"allowPolarity",1},"Learn may change polarity",true));
+    p.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"allowDelay",1},"Legacy timing permission (state migration only)",true));
+    p.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"allowPolarity",1},"Legacy polarity permission (state migration only)",true));
     p.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"band",1},"Low-end focus (Hz)",juce::NormalisableRange<float>(50,500,1),180));
     p.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"compare",1},"Compare neutral",false));
+    p.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"duckEnabled",1},"Sidechain ducking",false));
+    p.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"duckAmount",1},"Ducking amount (%)",juce::NormalisableRange<float>(0,100,1),50));
+    p.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"duckHarshness",1},"Ducking harshness (%)",juce::NormalisableRange<float>(0,100,1),50));
+    p.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"correctionMode",1},"Automatic correction",juce::StringArray{"Timing + polarity","Preserve polarity","Preserve timing"},0));
     return p;
 }
 PhaseTwinProcessor::PhaseTwinProcessor():AudioProcessor(BusesProperties().withInput("Target A",juce::AudioChannelSet::stereo(),true).withInput("Reference B",juce::AudioChannelSet::stereo(),true).withOutput("Aligned output",juce::AudioChannelSet::stereo(),true)),Thread("PhaseTwin analysis"),parameters(*this,nullptr,"PhaseTwin",layout()){
-    const char* ids[]={"auto","freeze","range","confidence","manual","polarity","mix","gain","profile","allowDelay","allowPolarity","band","compare"};
+    const char* ids[]={"auto","freeze","range","confidence","manual","polarity","mix","gain","profile","allowDelay","allowPolarity","band","compare","duckEnabled","duckAmount","duckHarshness","correctionMode"};
     for(size_t i=0;i<values.size();++i)values[i]=parameters.getRawParameterValue(ids[i]);
 }
 PhaseTwinProcessor::~PhaseTwinProcessor(){stopThread(-1);}
@@ -29,7 +33,7 @@ void PhaseTwinProcessor::prepareToPlay(double sr,int){
     sampleRateHz=sr;
     const double lag=detectedLag.load()+sr*values[4]->load()/1000.0;
     const bool invert=inverted.load()!=(values[5]->load()>0.5f);
-    engine.prepare(sr,lag,invert);setLatencySamples(engine.getLatency());
+    ducker.prepare(sr);duckReductionDb=0;engine.prepare(sr,lag,invert);setLatencySamples(engine.getLatency());
     kickMailbox=0;kickStarted=false;
     captureIndex=scopeIndex=0;scopeSampleClock=0;++scopeGeneration;mailbox=0;confidence=0;locked=false;referencePresent=false;
     verified=false;verificationAvailable=false;postCorrelation=0;residualLag=0;settling=false;
@@ -92,7 +96,8 @@ void PhaseTwinProcessor::process(juce::AudioBuffer<float>& buffer,bool bypass){
     auto side=getBusBuffer(buffer,true,1);referencePresent.store(hasReference);
     const bool automatic=values[0]->load()>0.5f,freeze=values[1]->load()>0.5f;
     const int mode=int(values[8]->load());const float band=values[11]->load();
-    const bool allowTiming=values[9]->load()>0.5f,allowPolarity=values[10]->load()>0.5f;
+    const int correctionMode=std::clamp(int(values[16]->load()),0,2);
+    const bool allowTiming=correctionMode!=2,allowPolarity=correctionMode!=1;
     const float trim=values[4]->load(),polarity=values[5]->load(),gate=values[3]->load();
     const int search=std::clamp(int(sampleRateHz*values[2]->load()/1000),1,phasetwin::frameSize/2-1);
     const auto revision=stateRevision.load();
@@ -130,8 +135,8 @@ void PhaseTwinProcessor::process(juce::AudioBuffer<float>& buffer,bool bypass){
                 learning.add(jobEstimate);
                 const auto candidate=learning.result(sampleRateHz,mode==1);reliability=float(candidate.confidence);
                 if(automatic && !learnActive && !freeze && candidate.reliable){
-                    if(values[9]->load()>0.5f && std::abs(candidate.lag-detectedLag.load())>0.05)detectedLag=float(candidate.lag);
-                    if(values[10]->load()>0.5f)inverted=candidate.inverted;
+                    if(allowTiming && std::abs(candidate.lag-detectedLag.load())>0.05)detectedLag=float(candidate.lag);
+                    if(allowPolarity)inverted=candidate.inverted;
                 }
             }
             postCorrelation=float(jobPostCorrelation);
@@ -153,15 +158,15 @@ void PhaseTwinProcessor::process(juce::AudioBuffer<float>& buffer,bool bypass){
     if(learnActive && (freeze || bypass || !hasReference)){learnActive=false;learnState=3;}
     if(learnActive && mode==1 && !kickStarted && kickMailbox.load(std::memory_order_acquire)==0){
         kickData.count=0;kickCapture.prepare(sampleRateHz,band);kickStarted=true;
-        kickConfig={std::clamp(int(phasetwin::kickRate*values[2]->load()/1000),1,120),detectedLag.load()*phasetwin::kickRate/sampleRateHz,trim*phasetwin::kickRate/1000.0,inverted.load(),polarity>0.5f,values[9]->load()>0.5f,values[10]->load()>0.5f};
+        kickConfig={std::clamp(int(phasetwin::kickRate*values[2]->load()/1000),1,120),detectedLag.load()*phasetwin::kickRate/sampleRateHz,trim*phasetwin::kickRate/1000.0,inverted.load(),polarity>0.5f,allowTiming,allowPolarity};
         kickGeneration=generation;
     }
     if(mode==0 && learnActive && learnTimedOut && mailbox.load(std::memory_order_acquire)!=1){
         const auto candidate=learning.result(sampleRateHz,mode==1);reliability=float(candidate.confidence);
-        if(values[9]->load()<0.5f && values[10]->load()<0.5f)learnState=4;
+        if(!allowTiming && !allowPolarity)learnState=4;
         else if(candidate.reliable && !freeze){
-            commitLearned(values[9]->load()>0.5f?candidate.lag:detectedLag.load(),values[10]->load()>0.5f?candidate.inverted:inverted.load());
-            learnState=(values[9]->load()>0.5f || values[10]->load()>0.5f)?2:4;
+            commitLearned(allowTiming?candidate.lag:detectedLag.load(),allowPolarity?candidate.inverted:inverted.load());
+            learnState=(allowTiming || allowPolarity)?2:4;
         }else learnState=3;
         learnActive=false;
     }
@@ -175,6 +180,7 @@ void PhaseTwinProcessor::process(juce::AudioBuffer<float>& buffer,bool bypass){
     engine.setCorrection(lag,invert);
     referenceMix.setTargetValue(bypass?0.0f:values[6]->load());outputGain.setTargetValue(bypass?1.0f:juce::Decibels::decibelsToGain(values[7]->load()));
     compareMix.setTargetValue(values[12]->load()>0.5f?1.0f:0.0f);
+    ducker.configure(!bypass && hasReference && values[13]->load()>0.5f,values[14]->load(),values[15]->load());
     scopePacket.sampleRate=sampleRateHz;scopePacket.generation=scopeGeneration;
     double inputEnergyA=0,inputEnergyB=0;
     for(int n=0;n<buffer.getNumSamples();++n){
@@ -217,20 +223,32 @@ void PhaseTwinProcessor::process(juce::AudioBuffer<float>& buffer,bool bypass){
             scopePacket.traces[4+ch][scopeIndex]=corrected.a[ch];scopePacket.traces[6+ch][scopeIndex]=corrected.b[ch];
         }
         if(++scopeIndex==phasetwin::scopePacketSamples){scopeIndex=0;scope.push(scopePacket);}
+        const float duckGain=ducker.process(corrected.b);
         const float mix=referenceMix.getNextValue(),gain=outputGain.getNextValue();
-        for(int ch=0;ch<output.getNumChannels();++ch)output.setSample(ch,n,gain*(corrected.a[ch]+mix*corrected.b[ch]));
+        for(int ch=0;ch<output.getNumChannels();++ch)output.setSample(ch,n,gain*(duckGain*corrected.a[ch]+mix*corrected.b[ch]));
     }
     if(buffer.getNumSamples()>0){
         const float release=float(60.0*buffer.getNumSamples()/sampleRateHz);
         inputDbA=std::max(inputDbA.load()-release,float(10*std::log10(std::max(1e-10,inputEnergyA/buffer.getNumSamples()))));
         inputDbB=std::max(inputDbB.load()-release,float(10*std::log10(std::max(1e-10,inputEnergyB/buffer.getNumSamples()))));
     }
+    duckReductionDb=ducker.reductionDb();
     appliedLag=float(engine.appliedLag());settling=engine.isSettling();
     if(engine.isSettling())verified=false;
     if(!hasReference || bypass){confidence=0;locked=false;verified=false;verificationAvailable=false;postCorrelation=0;alignmentScore=0;}
 }
-void PhaseTwinProcessor::getStateInformation(juce::MemoryBlock& block){auto state=parameters.copyState();state.setProperty("schema",4,nullptr);state.setProperty("scopeView",int(scopePreferences.load()),nullptr);state.setProperty("undoAvailable",undoAvailable.load(),nullptr);state.setProperty("priorLagMs",priorLagMs.load(),nullptr);state.setProperty("priorPolarity",priorPolarity.load(),nullptr);state.setProperty("heldLagMs",1000.0*detectedLag.load()/sampleRateHz,nullptr);state.setProperty("heldPolarity",inverted.load(),nullptr);if(auto xml=state.createXml())copyXmlToBinary(*xml,block);}
+void PhaseTwinProcessor::getStateInformation(juce::MemoryBlock& block){auto state=parameters.copyState();state.setProperty("schema",6,nullptr);state.setProperty("scopeView",int(scopePreferences.load()),nullptr);state.setProperty("undoAvailable",undoAvailable.load(),nullptr);state.setProperty("priorLagMs",priorLagMs.load(),nullptr);state.setProperty("priorPolarity",priorPolarity.load(),nullptr);state.setProperty("heldLagMs",1000.0*detectedLag.load()/sampleRateHz,nullptr);state.setProperty("heldPolarity",inverted.load(),nullptr);if(auto xml=state.createXml())copyXmlToBinary(*xml,block);}
 void PhaseTwinProcessor::setStateInformation(const void* data,int size){if(auto xml=getXmlFromBinary(data,size))if(xml->hasTagName(parameters.state.getType())){auto state=juce::ValueTree::fromXml(*xml);scopePreferences=std::uint32_t(int(state.getProperty("scopeView",int(phasetwin::ScopePreferences{}.packed()))));scopeViewRevision.fetch_add(1);const double priorMs=double(state.getProperty("priorLagMs",0.0));priorLagMs=float(std::isfinite(priorMs)?std::clamp(priorMs,-40.0,40.0):0.0);priorPolarity=bool(state.getProperty("priorPolarity",false));undoAvailable=bool(state.getProperty("undoAvailable",false));const double heldMs=double(state.getProperty("heldLagMs",0.0));detectedLag.store(float((std::isfinite(heldMs)?std::clamp(heldMs,-40.0,40.0):0.0)*sampleRateHz/1000.0));inverted.store(bool(state.getProperty("heldPolarity",false)));if(int(state.getProperty("schema",0))<3){auto oldAuto=state.getChildWithProperty("id","auto");if(oldAuto.isValid() && double(oldAuto.getProperty("value",1.0))<0.5){detectedLag=0;inverted=false;}}
+        const char* duckIds[]={"duckEnabled","duckAmount","duckHarshness"};
+        for(int i=0;i<3;++i)if(!state.getChildWithProperty("id",duckIds[i]).isValid()){juce::ValueTree parameter("PARAM");parameter.setProperty("id",duckIds[i],nullptr);parameter.setProperty("value",i==0?0:50,nullptr);state.appendChild(parameter,nullptr);}
+        if(!state.getChildWithProperty("id","correctionMode").isValid()){
+            const auto timing=state.getChildWithProperty("id","allowDelay"),polarity=state.getChildWithProperty("id","allowPolarity");
+            const bool timingAllowed=!timing.isValid() || double(timing.getProperty("value",1))>=0.5;
+            const bool polarityAllowed=!polarity.isValid() || double(polarity.getProperty("value",1))>=0.5;
+            juce::ValueTree correction("PARAM");correction.setProperty("id","correctionMode",nullptr);correction.setProperty("value",!timingAllowed?2:!polarityAllowed?1:0,nullptr);state.appendChild(correction,nullptr);
+            // Legacy measure-only sessions load locked rather than suddenly adapting.
+            if(!timingAllowed && !polarityAllowed){auto lock=state.getChildWithProperty("id","freeze");if(!lock.isValid()){lock=juce::ValueTree("PARAM");lock.setProperty("id","freeze",nullptr);state.appendChild(lock,nullptr);}lock.setProperty("value",1,nullptr);}
+        }
         parameters.replaceState(state);stateRevision.fetch_add(1);}}
 juce::AudioProcessorEditor* PhaseTwinProcessor::createEditor(){return new PhaseTwinEditor(*this);}
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new PhaseTwinProcessor();}

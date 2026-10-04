@@ -1,0 +1,13 @@
+PASS first-open defaults are explicit
+PASS 168 summed/style/mode/channel/division combinations roundtrip
+PASS invalid settings safely bounded
+PASS malformed packed preferences bounded
+PASS positive fill reaches zero baseline
+PASS negative fill preserves signed lobe
+PASS mixed envelope fill retains both peaks
+PASS raw before sum preserves exact cancellation
+PASS raw corrected sum retains constructive amplitude
+PASS long sum envelope preserves cancellation instead of adding independent extrema
+PASS long mono sum retains constructive peaks
+PASS older saved view remains stacked
+PASS both hidden waves remain a valid visual state

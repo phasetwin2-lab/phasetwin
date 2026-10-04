@@ -1,0 +1,15 @@
+PASS no evidence cannot auto apply
+PASS one good peak is insufficient
+PASS consistent multi-window sub-sample candidate
+PASS moving timing rejected despite strong individual peaks
+PASS contradictory polarities rejected
+PASS negative fractional lag and polarity consensus
+PASS rolling history cannot retain stale reliable evidence forever
+PASS score definition is separate from learn confidence
+PASS kick/bass analysis excludes high-frequency content
+PASS low-end selection ignores louder high-frequency channel
+PASS analysis band removes DC
+PASS low-end transient learning preserves known timing and polarity
+PASS low-band periodic ambiguity still rejected
+PASS neutral A/B keeps baseline latency and exposes real correction
+14 learning checks passed

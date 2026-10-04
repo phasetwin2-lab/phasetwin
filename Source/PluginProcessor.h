@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "AudioEngine.h"
+#include "Ducking.h"
 #include "Learning.h"
 #include "KickAlignment.h"
 #include "ScopeData.h"
@@ -33,6 +34,7 @@ public:
     std::atomic<float> detectedLag{0},confidence{0},appliedLag{0},residualLag{0},postCorrelation{0};
     std::atomic<bool> verified{false},settling{false},verificationAvailable{false};
     phasetwin::ScopeQueue scope;
+    std::atomic<float> duckReductionDb{0};
     std::atomic<float> inputDbA{-100},inputDbB{-100};
     std::atomic<double> hostBpm{120};
     std::atomic<bool> bpmAvailable{false};
@@ -94,10 +96,11 @@ private:
     bool previousInvert=false,captureSettled=true,jobWasSettled=false;
     phasetwin::Estimator estimator;
     phasetwin::AudioEngine engine;
+    phasetwin::Ducker ducker;
     phasetwin::ScopePacket scopePacket;
     int captureIndex=0,scopeIndex=0;
     double sampleRateHz=48000;
     juce::SmoothedValue<float> referenceMix,outputGain,compareMix;
-    std::array<std::atomic<float>*,13> values{};
+    std::array<std::atomic<float>*,17> values{};
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhaseTwinProcessor)
 };
